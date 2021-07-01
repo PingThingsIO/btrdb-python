@@ -736,7 +736,7 @@ class Stream(object):
 
         return tuple(materialized)
 
-    def nearest(self, time, version, backward=False):
+    async def nearest(self, time, version, backward=False):
         """
         Finds the closest point in the stream to a specified time.
 
@@ -764,7 +764,7 @@ class Stream(object):
 
         """
         try:
-            rp, version = self._btrdb.ep.nearest(self._uuid,
+            rp, version = await self._btrdb.ep.nearest(self._uuid,
                 to_nanoseconds(time), version, backward)
         except BTrDBError as exc:
             if not isinstance(exc, NoSuchPoint):

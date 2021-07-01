@@ -280,7 +280,7 @@ class BTrDB(object):
         """
         return [c async for some in self.ep.listCollections(starts_with) for c in some]
 
-    def streams_in_collection(self, *collection, is_collection_prefix=True, tags=None, annotations=None):
+    async def streams_in_collection(self, *collection, is_collection_prefix=True, tags=None, annotations=None):
         """
         Search for streams matching given parameters
 
@@ -316,7 +316,7 @@ class BTrDB(object):
 
         for item in collection:
             streams = self.ep.lookupStreams(item, is_collection_prefix, tags, annotations)
-            for desclist in streams:
+            async for desclist in streams:
                 for desc in desclist:
                     tagsanns = unpack_stream_descriptor(desc)
                     result.append(Stream(

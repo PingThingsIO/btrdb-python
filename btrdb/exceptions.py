@@ -19,11 +19,12 @@ from functools import wraps
 ## Decorators
 ##########################################################################
 
-def consume_generator(fn, *args, **kwargs):
+async def consume_generator(fn, *args, **kwargs):
     # when a generator is passed back to the calling function, it may encounter an error
     # when trying to call next(), in that case we want to yield an Exception
     try:
-        yield from fn(*args, **kwargs)
+        async for item in fn(*args, **kwargs):
+            yield item
     except RpcError as e:
         handle_grpc_error(e)
 
@@ -36,8 +37,9 @@ def error_handler(fn):
     fn: function
     """
     # allows input func to keep its name and metadata
+    return fn
     @wraps(fn)
-    def wrap(*args, **kwargs):
+    async def wrap(*args, **kwargs):
         if inspect.isgeneratorfunction(fn):
             return consume_generator(fn, *args, **kwargs)
         try:

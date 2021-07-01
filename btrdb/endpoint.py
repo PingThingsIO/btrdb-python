@@ -161,8 +161,8 @@ class Endpoint(object):
             check_proto_stat(msg.stat)
             yield msg.collections
 
-    @error_handler
-    def lookupStreams(self, collection, isCollectionPrefix, tags, annotations):
+#     @error_handler
+    async def lookupStreams(self, collection, isCollectionPrefix, tags, annotations):
         tagkvlist = []
         for k, v in tags.items():
             if v is None:
@@ -189,16 +189,17 @@ class Endpoint(object):
             tags=tagkvlist,
             annotations=annkvlist,
         )
-        for result in self.stub.LookupStreams(params):
+#         print(self.stub.LookupStreams(params))
+        async for result in self.stub.LookupStreams(params):
             check_proto_stat(result.stat)
             yield result.results
 
     @error_handler
-    def nearest(self, uu, time, version, backward):
+    async def nearest(self, uu, time, version, backward):
         params = btrdb_pb2.NearestParams(
             uuid=uu.bytes, time=time, versionMajor=version, backward=backward
         )
-        result = self.stub.Nearest(params)
+        result = await self.stub.Nearest(params)
         check_proto_stat(result.stat)
         return result.value, result.versionMajor
     
