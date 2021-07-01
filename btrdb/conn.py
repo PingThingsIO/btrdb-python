@@ -20,7 +20,7 @@ import re
 import json
 import uuid as uuidlib
 
-import grpc
+import grpc as grpc
 from grpc._cython.cygrpc import CompressionAlgorithm
 
 from btrdb.stream import Stream, StreamSet
@@ -73,13 +73,13 @@ class Connection(object):
                 contents = None
 
             if apikey is None:
-                self.channel = grpc.secure_channel(
+                self.channel = grpc.aio.secure_channel(
                     addrportstr,
                     grpc.ssl_channel_credentials(contents),
                     options=chan_ops
                 )
             else:
-                self.channel = grpc.secure_channel(
+                self.channel = grpc.aio.secure_channel(
                     addrportstr,
                     grpc.composite_channel_credentials(
                         grpc.ssl_channel_credentials(contents),
@@ -90,7 +90,7 @@ class Connection(object):
         else:
             if apikey is not None:
                 raise ValueError("cannot use an API key with an insecure (port 4410) BTrDB API. Try port 4411")
-            self.channel = grpc.insecure_channel(addrportstr, chan_ops)
+            self.channel = grpc.aio.insecure_channel(addrportstr, chan_ops)
 
 
 
@@ -268,7 +268,7 @@ class BTrDB(object):
             "proxy": { "proxyEndpoints": [ep for ep in info.proxy.proxyEndpoints] },
         }
 
-    def list_collections(self, starts_with=""):
+    async def list_collections(self, starts_with=""):
         """
         Returns a list of collection paths using the `starts_with` argument for
         filtering.
@@ -278,7 +278,7 @@ class BTrDB(object):
         collection paths: list[str]
 
         """
-        return [c for some in self.ep.listCollections(starts_with) for c in some]
+        return [c async for some in self.ep.listCollections(starts_with) for c in some]
 
     def streams_in_collection(self, *collection, is_collection_prefix=True, tags=None, annotations=None):
         """

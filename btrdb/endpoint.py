@@ -148,7 +148,7 @@ class Endpoint(object):
         check_proto_stat(result.stat)
 
     @error_handler
-    def listCollections(self, prefix):
+    async def listCollections(self, prefix):
         """
         Returns a generator for windows of collection paths matching search
 
@@ -157,7 +157,7 @@ class Endpoint(object):
         collection paths : list[str]
         """
         params = btrdb_pb2.ListCollectionsParams(prefix=prefix)
-        for msg in self.stub.ListCollections(params):
+        async for msg in self.stub.ListCollections(params):
             check_proto_stat(msg.stat)
             yield msg.collections
 
