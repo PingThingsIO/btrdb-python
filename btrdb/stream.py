@@ -1157,7 +1157,7 @@ class StreamSetBase(Sequence):
         elif len(args) == 2 and len(kwargs) == 0:
             width, depth = args
         elif len(args) == 0 and len(kwargs) == 2:
-            width, depth = kwargs.get('width', None) and kwargs.get('depth', None)
+            width, depth = kwargs.get('width', None), kwargs.get('depth', None)
         elif len(args) == 0 and len(kwargs) == 4:
             start, end, width, depth = [kwargs.get(k, None) for k in ('start', 'end', 'width',  'depth')]
         elif len(args) == 4 and len(kwargs) == 0:
@@ -1215,7 +1215,7 @@ class StreamSetBase(Sequence):
         """
         start, end = None, None
         if len(args) < 1 and len(kwargs) < 1:
-            raise UserWarning("Require 'width' and 'depth'")
+            raise UserWarning("Require 'pointwidth'")
         elif len(args) == 1 and len(kwargs) == 0:
             pointwidth = args[0]
         elif len(args) == 0 and len(kwargs) == 1:
