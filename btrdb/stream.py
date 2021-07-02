@@ -1165,7 +1165,7 @@ class StreamSetBase(Sequence):
         else:
             if kwargs.get('width', None) and kwargs.get('depth', None):
                 start, end = args
-                width, depth = kwargs.get('width', None) and kwargs.get('depth', None)
+                width, depth = kwargs.get('width', None), kwargs.get('depth', None)
             else:
                 width, depth = args
                 start, end = kwargs.get('start', None), kwargs.get('end', None)
