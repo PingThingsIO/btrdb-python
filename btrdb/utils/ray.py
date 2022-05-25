@@ -44,7 +44,6 @@ def register_serializer(conn_str=None, apikey=None, profile=None):
         # ray register_serializer didn't exist for version 1.0 to 1.2?
         raise Exception("Ray version %s does not have custom serialization. Please upgrade to >= 1.2.0" % ray.__version__)
 
-
 def btrdb_serializer(_):
     """
     sererialize function
