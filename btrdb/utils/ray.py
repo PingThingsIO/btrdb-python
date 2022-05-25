@@ -35,13 +35,14 @@ def register_serializer(conn_str=None, apikey=None, profile=None):
         ray.register_custom_serializer(
             BTrDB, serializer=btrdb_serializer,
             deserializer=partial(btrdb_deserializer, conn_str=conn_str, apikey=apikey, profile=profile))
-    elif ver.major == 1 and ver.minor in range(4, 13):  # as of May 2022, latest Ray version is at 1.12
+    elif ver.major == 1 and ver.minor in range(2, 13):  # as of May 2022, latest Ray version is at 1.12
         # TODO: check different versions of ray?
         ray.util.register_serializer(
             BTrDB, serializer=btrdb_serializer,
             deserializer=partial(btrdb_deserializer, conn_str=conn_str, apikey=apikey, profile=profile))
     else:
-        raise Exception("Ray version %s does not have custom serialization. Please upgrade to >= 1.4.0" % ray.__version__)
+        # ray register_serializer didn't exist for version 1.0 to 1.2?
+        raise Exception("Ray version %s does not have custom serialization. Please upgrade to >= 1.2.0" % ray.__version__)
 
 
 def btrdb_serializer(_):
