@@ -2,6 +2,7 @@ from functools import partial
 
 import btrdb
 from btrdb.conn import BTrDB
+from functools import partial
 
 def register_serializer(conn_str=None, apikey=None, profile=None):
     """
@@ -41,7 +42,7 @@ def register_serializer(conn_str=None, apikey=None, profile=None):
                 BTrDB, serializer=btrdb_serializer,
                 deserializer=partial(btrdb_deserializer, conn_str=conn_str, apikey=apikey, profile=profile))
     else:
-        raise Exception("Ray version %s does not have custom serialization. Please upgrade to >= 1.2.0" % ray.__version__)
+        raise Exception("Ray version %s does not have custom serialization. Please upgrade to >= 1.4.0" % ray.__version__)
 
 def btrdb_serializer(_):
     """
