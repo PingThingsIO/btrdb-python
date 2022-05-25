@@ -1,5 +1,3 @@
-from functools import partial
-
 import btrdb
 from btrdb.conn import BTrDB
 from functools import partial
