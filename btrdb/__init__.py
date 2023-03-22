@@ -15,7 +15,7 @@ Package for the btrdb database library.
 ## Imports
 ##########################################################################
 
-from btrdb.conn import Connection, BTrDB
+from btrdb.conn import Connection, BTrDB, BatchCreateArgs, BatchSQLQueryArgs
 from btrdb.endpoint import Endpoint
 from btrdb.exceptions import ConnectionError
 from btrdb.version import get_version
@@ -78,4 +78,3 @@ def connect(conn_str=None, apikey=None, profile=None):
         return _connect(**creds)
 
     raise ConnectionError("Could not determine credentials to use.")
-

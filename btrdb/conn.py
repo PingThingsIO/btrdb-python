@@ -19,6 +19,7 @@ import os
 import re
 import json
 import uuid as uuidlib
+from collections import deque
 
 import grpc
 from grpc._cython.cygrpc import CompressionAlgorithm
@@ -92,8 +93,17 @@ class Connection(object):
                 raise ValueError("cannot use an API key with an insecure (port 4410) BTrDB API. Try port 4411")
             self.channel = grpc.insecure_channel(addrportstr, chan_ops)
 
+class BatchCreateArgs(object):
+    def __init__(self, uuid, collection, tags=None, annotations=None):
+        self.uuid=uuid
+        self.collection=collection
+        self.tags=tags
+        self.annotations=annotations
 
-
+class BatchSQLQueryArgs(object):
+    def __init__(self, stmt, params=[]):
+        self.stmt=stmt
+        self.params=params
 
 class BTrDB(object):
     """
@@ -139,6 +149,24 @@ class BTrDB(object):
             for row in page
         ]
 
+    def batch_query(self, query_args):
+        results = []
+        futs = deque()
+        max_inflight = 128
+
+        def fut2rows(fut):
+            return [
+                json.loads(row.decode("utf-8"))
+                for page in fut.result()
+                for row in page
+            ]
+        for a in query_args:
+            if len(futs) == max_inflight:
+                results.append(fut2rows(futs.pop()))
+            futs.appendleft(self.ep.async_sql_query(a.stmt, a.params))
+        while len(futs) != 0:
+            results.append(fut2rows(futs.pop()))
+        return results
 
     def streams(self, *identifiers, versions=None, is_collection_prefix=False):
         """
@@ -250,6 +278,61 @@ class BTrDB(object):
             annotations=annotations.copy(),
             property_version=0
         )
+
+    class _AsyncCreateFuture(object):
+        def __init__(self, fut, stream):
+            self.fut = fut
+            self.stream = stream
+        def result(self):
+            result = self.fut.result()
+            return self.stream
+
+    def _async_create(self, uuid, collection, tags=None, annotations=None):
+        if tags is None:
+            tags = {}
+
+        if annotations is None:
+            annotations = {}
+
+        tentative_stream = Stream(
+            self, uuid,
+            known_to_exist=True,
+            collection=collection,
+            tags=tags.copy(),
+            annotations=annotations.copy(),
+            property_version=0
+        )
+
+        fut = self.ep.async_create(uuid, collection, tags, annotations)
+        return self._AsyncCreateFuture(fut, tentative_stream)
+
+    def batch_create(self, args):
+        """
+        Like create, but creates many streams using more efficient request batching.
+
+        Parameters
+        ----------
+        args: [BatchCreateArgs]
+            A list of BatchCreateArgs objects containing the stream creation parameters.
+
+        Returns
+        -------
+        StreamSet
+            instance of StreamSet class
+        """
+        max_inflight = 128
+        streams = []
+        futs = deque()
+        for a in args:
+            if len(futs) == max_inflight:
+                streams.append(futs.pop().result())
+            fut = self._async_create(
+                a.uuid, a.collection, a.tags, a.annotations
+            ) 
+            futs.appendleft(fut)
+        while len(futs) != 0:
+            streams.append(futs.pop().result())
+        return StreamSet(streams)
 
     def info(self):
         """

@@ -19,6 +19,7 @@ import re
 import json
 import uuid as uuidlib
 from copy import deepcopy
+from collections import deque
 from collections.abc import Sequence
 
 from btrdb.utils.buffer import PointBuffer
@@ -42,6 +43,7 @@ from btrdb.exceptions import (
 ## Module Variables
 ##########################################################################
 
+STREAMSET_API_DEFAULT_PARALLEL_REQUESTS=64
 INSERT_BATCH_SIZE = 50000
 MINIMUM_TIME = -(16 << 56)
 MAXIMUM_TIME = (48 << 56) - 1
@@ -395,7 +397,7 @@ class Stream(object):
         Returns the current data version of the stream.
 
         Version returns the current data version of the stream. This is not
-        cached, it queries each time. Take care that you do not intorduce races
+        cached, it queries each time. Take care that you do not introduce races
         in your code by assuming this function will always return the same vaue
 
         Parameters
@@ -410,6 +412,16 @@ class Stream(object):
         """
         return self._btrdb.ep.streamInfo(self._uuid, True, False)[4]
 
+    class _AsyncVersionFuture(object):
+        def __init__(self, fut):
+            self.fut = fut
+        def result(self):
+            return self.fut.result()[4]
+
+    def _async_version(self):
+        fut = self._btrdb.ep.async_streamInfo(self._uuid, True, False)
+        return self._AsyncVersionFuture(fut)
+
     def insert(self, data, merge='never'):
         """
         Insert new data in the form (time, value) into the series.
@@ -423,7 +435,7 @@ class Stream(object):
         Parameters
         ----------
         data: list[tuple[int, float]]
-            A list of tuples in which each tuple contains a time (int) and
+         list   A list of tuples in which each tuple contains a time (int) and
             value (float) for insertion to the database
         merge: str
             A string describing the merge policy. Valid policies are:
@@ -441,10 +453,28 @@ class Stream(object):
         i = 0
         version = 0
         while i < len(data):
-            thisBatch = data[i:i + INSERT_BATCH_SIZE]
-            version = self._btrdb.ep.insert(self._uuid, thisBatch, merge)
+            batch = data[i:i + INSERT_BATCH_SIZE]
+            version = self._btrdb.ep.insert(self._uuid, batch, merge)
             i += INSERT_BATCH_SIZE
         return version
+
+    class _AsyncInsertFuture(object):
+        def __init__(self, futs):
+            self.futs = futs
+        def result(self):
+            version = 0
+            for fut in self.futs:
+                version = fut.result()
+            return version
+
+    def _async_insert(self, data, merge='never'):
+        futs = []
+        i = 0
+        while i < len(data):
+            batch = data[i:i + INSERT_BATCH_SIZE]
+            futs.append(self._btrdb.ep.async_insert(self._uuid, batch, merge))
+            i += INSERT_BATCH_SIZE
+        return self._AsyncInsertFuture(futs)
 
     def _update_tags_collection(self, tags, collection):
         tags = self.tags() if tags is None else tags
@@ -577,6 +607,10 @@ class Stream(object):
         return self._btrdb.ep.deleteRange(self._uuid, to_nanoseconds(start),
             to_nanoseconds(end))
 
+    def _async_delete(self, start, end):
+        return self._btrdb.ep.async_deleteRange(self._uuid, to_nanoseconds(start),
+            to_nanoseconds(end))
+
     def values(self, start, end, version=0):
         """
         Read raw values from BTrDB between time [a, b) in nanoseconds.
@@ -621,6 +655,24 @@ class Stream(object):
             for point in point_list:
                 materialized.append((RawPoint.from_proto(point), version))
         return materialized
+
+    class _AsyncValuesFuture(object):
+        def __init__(self, fut, version):
+            self.version = version
+            self.fut = fut
+        def result(self):
+            materialized = []
+            point_windows = self.fut.result()
+            for point_list, version in point_windows:
+                for point in point_list:
+                    materialized.append((RawPoint.from_proto(point), self.version))
+            return materialized
+
+    def _async_values(self, start, end, version=0):
+        start = to_nanoseconds(start)
+        end = to_nanoseconds(end)
+        fut = self._btrdb.ep.async_rawValues(self._uuid, start, end, version)
+        return self._AsyncValuesFuture(fut, version)
 
     def aligned_windows(self, start, end, pointwidth, version=0):
         """
@@ -778,12 +830,18 @@ class Stream(object):
         """
         self._btrdb.ep.obliterate(self._uuid)
 
+    def _async_obliterate(self):
+        return self._btrdb.ep.async_obliterate(self._uuid)
+
     def flush(self):
         """
         Flush writes the stream buffers out to persistent storage.
 
         """
         self._btrdb.ep.flush(self._uuid)
+
+    def _async_flush(self):
+        return self._btrdb.ep.async_flush(self._uuid)
 
     def __repr__(self):
         return "<Stream collection={} name={}>".format(self.collection,
@@ -812,8 +870,17 @@ class StreamSetBase(Sequence):
         return not bool(self.pointwidth or (self.width and self.depth))
 
     def _latest_versions(self):
-        return {s.uuid: s.version() for s in self._streams}
-
+        versions = {}
+        futs = deque()
+        for s in self._streams:
+            if len(futs) == STREAMSET_API_DEFAULT_PARALLEL_REQUESTS:
+                (s, fut) = futs.pop()
+                versions[s.uuid] = fut.result()
+            futs.appendleft((s, s._async_version()))
+        while len(futs) != 0:
+            (s, fut) = futs.pop()
+            versions[s.uuid] = fut.result()
+        return versions
 
     def pin_versions(self, versions=None):
         """
@@ -1205,8 +1272,13 @@ class StreamSetBase(Sequence):
                 data.append(s.windows(**params))
 
         else:
-            # create list of stream.values
-            data = [s.values(**params) for s in self._streams]
+            futs = deque()
+            for s in self._streams:
+                if len(futs) == STREAMSET_API_DEFAULT_PARALLEL_REQUESTS:
+                    data.append(futs.pop().result())
+                futs.appendleft(s._async_values(**params))
+            while len(futs) != 0:
+                data.append(futs.pop().result())
 
         if as_iterators:
             return [iter(ii) for ii in data]
@@ -1284,6 +1356,67 @@ class StreamSetBase(Sequence):
             result.append([point[0] for point in stream_data])
 
         return result
+
+    def insert(self, data, merge='never'):
+        """
+        Inserts points across the stream set using efficient request batching.
+
+        Parameters
+        ----------
+        data: list[list[tuple[int, float]]] | {uuid:list[tuple[int, float]]}
+
+        """
+        assert(len(data) == len(self._streams))
+        if type(data) is dict:
+            data = [data[s.uuid] for s in self._streams]
+        versions = []
+        futs = deque()
+        for i in range(0, len(data)):
+            if len(futs) == STREAMSET_API_DEFAULT_PARALLEL_REQUESTS:
+                versions.append(futs.pop().result())
+            s = self._streams[i]
+            futs.appendleft(s._async_insert(data[i], merge))
+        while len(futs) != 0:
+            versions.append(futs.pop().result())
+        return versions
+
+    def delete(self, start, end):
+        """
+        Delete points in the stream set using efficient request batching.
+        """
+        futs = deque()
+        versions = []
+        for s in self._streams:
+            if len(futs) == STREAMSET_API_DEFAULT_PARALLEL_REQUESTS:
+                versions.append(futs.pop().result())
+            futs.appendleft(s._async_delete(start, end))
+        while len(futs) != 0:
+            versions.append(futs.pop().result())
+        return versions
+
+    def obliterate(self):
+        """
+        Obliterate the stream set using efficient request batching.
+        """
+        futs = deque()
+        for s in self._streams:
+            if len(futs) == 1: # STREAMSET_API_DEFAULT_PARALLEL_REQUESTS
+                futs.pop().result()
+            futs.appendleft(s._async_obliterate())
+        while len(futs) != 0:
+            futs.pop().result()
+
+    def flush(self):
+        """
+        Flush the stream set using efficient request batching.
+        """
+        futs = deque()
+        for s in self._streams:
+            if len(futs) == STREAMSET_API_DEFAULT_PARALLEL_REQUESTS:
+                futs.pop().result()
+            futs.appendleft(s._async_flush())
+        while len(futs) != 0:
+            futs.pop().result()
 
     def __repr__(self):
         token = "stream" if len(self) == 1 else "streams"
