@@ -1098,13 +1098,19 @@ class StreamSetBase(Sequence):
                 setattr(clone, attr, deepcopy(val))
         return clone
 
-    def windows(self, width, depth):
+    def windows(self, *args, **kwargs):
         """
         Stores the request for a windowing operation when the query is
         eventually materialized.
 
         Parameters
         ----------
+        start : int or datetime like object
+            the inclusive start of the query (see :func:`btrdb.utils.timez.to_nanoseconds`
+            for valid input types)
+        end : int or datetime like object
+            the exclusive end of the query (see :func:`btrdb.utils.timez.to_nanoseconds`
+            for valid input types)
         width : int
             The number of nanoseconds to use for each window size.
         depth : int
@@ -1132,6 +1138,26 @@ class StreamSetBase(Sequence):
         available has been deprecated. The only valid value for depth is now 0.
 
         """
+        start, end = None, None
+        if len(args) < 2 and len(kwargs) < 2:
+            raise UserWarning("Require 'width' and 'depth'")
+        elif len(args) == 2 and len(kwargs) == 0:
+            width, depth = args
+        elif len(args) == 0 and len(kwargs) == 2:
+            width, depth = kwargs.get('width', None), kwargs.get('depth', None)
+        elif len(args) == 0 and len(kwargs) == 4:
+            start, end, width, depth = [kwargs.get(k, None) for k in ('start', 'end', 'width',  'depth')]
+        elif len(args) == 4 and len(kwargs) == 0:
+            start, end, width, depth = args
+        else:
+            if kwargs.get('width', None) and kwargs.get('depth', None):
+                start, end = args
+                width, depth = kwargs.get('width', None), kwargs.get('depth', None)
+            else:
+                width, depth = args
+                start, end = kwargs.get('start', None), kwargs.get('end', None)
+        if start is not None and end is not None:
+            self = self.filter(start, end)  # because the `filter` returns an copy object.
         if not self.allow_window:
             raise InvalidOperation("A window operation is already requested")
 
@@ -1140,13 +1166,19 @@ class StreamSetBase(Sequence):
         self.depth = int(depth)
         return self
 
-    def aligned_windows(self, pointwidth):
+    def aligned_windows(self, *args, **kwargs):
         """
         Stores the request for an aligned windowing operation when the query is
         eventually materialized.
 
         Parameters
         ----------
+        start : int or datetime like object
+            the inclusive start of the query (see :func:`btrdb.utils.timez.to_nanoseconds`
+            for valid input types)
+        end : int or datetime like object
+            the exclusive end of the query (see :func:`btrdb.utils.timez.to_nanoseconds`
+            for valid input types)
         pointwidth : int
             The length of each returned window as computed by 2^pointwidth.
 
@@ -1168,6 +1200,26 @@ class StreamSetBase(Sequence):
         omitted.
 
         """
+        start, end = None, None
+        if len(args) < 1 and len(kwargs) < 1:
+            raise UserWarning("Require 'pointwidth'")
+        elif len(args) == 1 and len(kwargs) == 0:
+            pointwidth = args[0]
+        elif len(args) == 0 and len(kwargs) == 1:
+            pointwidth = kwargs.get('pointwidth', None)
+        elif len(args) == 0 and len(kwargs) == 3:
+            start, end, pointwidth = [kwargs.get(k, None) for k in ('start', 'end', 'pointwidth')]
+        elif len(args) == 3 and len(kwargs) == 0:
+            start, end, pointwidth = args
+        else:
+            if kwargs.get('pointwidth', None):
+                start, end = args
+                pointwidth = kwargs.get('pointwidth', None)
+            else:
+                pointwidth = args[0]
+                start, end = kwargs.get('start', None), kwargs.get('end', None)
+        if start is not None and end is not None:
+            self = self.filter(start, end)  # because the `filter` returns an copy object.
         if not self.allow_window:
             raise InvalidOperation("A window operation is already requested")
 
