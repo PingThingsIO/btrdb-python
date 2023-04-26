@@ -3,8 +3,14 @@ grpcio>=1.19.0,<=1.48.2
 grpcio-tools>=1.19.0,<=1.48.2
 
 # Time related utils
-pytz
+pytz~=2023.3
 
 # Misc libraries
-pyyaml
-certifi
+pyyaml~=6.0
+certifi~=2022.12.7
+
+numpy~=1.24.2
+pytest~=7.3.0
+freezegun~=1.2.2
+pandas~=2.0.0
+setuptools~=67.3.3
