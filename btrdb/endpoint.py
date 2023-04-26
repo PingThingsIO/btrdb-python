@@ -45,6 +45,22 @@ class Endpoint(object):
             check_proto_stat(result.stat)
             yield result.values, result.versionMajor
 
+    class AsyncRawValuesFuture(object):
+        def __init__(self, fut):
+            self.fut = fut
+        @error_handler
+        def result(self):
+            for result in self.fut:
+                check_proto_stat(result.stat)
+                yield result.values, result.versionMajor
+
+    @error_handler
+    def async_rawValues(self, uu, start, end, version=0):
+        params = btrdb_pb2.RawValuesParams(
+            uuid=uu.bytes, start=start, end=end, versionMajor=version
+        )
+        return self.AsyncRawValuesFuture(self.stub.RawValues(params))
+
     @error_handler
     def alignedWindows(self, uu, start, end, pointwidth, version=0):
         params = btrdb_pb2.AlignedWindowsParams(
@@ -83,11 +99,44 @@ class Endpoint(object):
         tagsanns = unpack_stream_descriptor(desc)
         return desc.collection, desc.propertyVersion, tagsanns[0], tagsanns[1], result.versionMajor
 
+    class AsyncStreamInfoFuture(object):
+        def __init__(self, fut):
+            self.fut = fut
+        @error_handler
+        def result(self):
+            result = self.fut.result()
+            desc = result.descriptor
+            check_proto_stat(result.stat)
+            tagsanns = unpack_stream_descriptor(desc)
+            return desc.collection, desc.propertyVersion, tagsanns[0], tagsanns[1], result.versionMajor
+
+    @error_handler
+    def async_streamInfo(self, uu, omitDescriptor, omitVersion):
+        params = btrdb_pb2.StreamInfoParams(
+            uuid=uu.bytes, omitVersion=omitVersion, omitDescriptor=omitDescriptor
+        )
+        fut = self.stub.StreamInfo.future(params)
+        return self.AsyncStreamInfoFuture(fut)
+
     @error_handler
     def obliterate(self, uu):
         params = btrdb_pb2.ObliterateParams(uuid=uu.bytes)
         result = self.stub.Obliterate(params)
         check_proto_stat(result.stat)
+
+    class AsyncObliterateFuture(object):
+        def __init__(self, fut):
+            self.fut = fut
+        @error_handler
+        def result(self):
+            result = self.fut.result()
+            check_proto_stat(result.stat)
+
+    @error_handler
+    def async_obliterate(self, uu):
+        params = btrdb_pb2.ObliterateParams(uuid=uu.bytes)
+        result = self.stub.Obliterate.future(params)
+        return self.AsyncObliterateFuture(result)
 
     @error_handler
     def setStreamAnnotations(self, uu, expected, changes, removals):
@@ -146,6 +195,29 @@ class Endpoint(object):
         )
         result = self.stub.Create(params)
         check_proto_stat(result.stat)
+
+    class AsyncCreateFuture(object):
+        def __init__(self, fut):
+            self.fut = fut
+        @error_handler
+        def result(self):
+            result = self.fut.result()
+            check_proto_stat(result.stat)
+
+    @error_handler
+    def async_create(self, uu, collection, tags, annotations):
+        tagkvlist = []
+        for k, v in tags.items():
+            kv = btrdb_pb2.KeyOptValue(key = k, val = btrdb_pb2.OptValue(value=v))
+            tagkvlist.append(kv)
+        annkvlist = []
+        for k, v in annotations.items():
+            kv = btrdb_pb2.KeyOptValue(key = k, val = btrdb_pb2.OptValue(value=v))
+            annkvlist.append(kv)
+        params = btrdb_pb2.CreateParams(
+            uuid=uu.bytes, collection=collection, tags=tagkvlist, annotations=annkvlist
+        )
+        return self.AsyncCreateFuture(self.stub.Create.future(params))
 
     @error_handler
     def listCollections(self, prefix):
@@ -233,12 +305,54 @@ class Endpoint(object):
         check_proto_stat(result.stat)
         return result.versionMajor
 
+    class AsyncInsertFuture(object):
+        def __init__(self, fut):
+            self.fut = fut
+        @error_handler
+        def result(self):
+            result = self.fut.result()
+            check_proto_stat(result.stat)
+            return result.versionMajor
+
+    @error_handler
+    def async_insert(self, uu, values, policy):
+        policy_map = {
+            "never": btrdb_pb2.MergePolicy.NEVER,
+            "equal": btrdb_pb2.MergePolicy.EQUAL,
+            "retain": btrdb_pb2.MergePolicy.RETAIN,
+            "replace": btrdb_pb2.MergePolicy.REPLACE,
+        }
+        protoValues = RawPoint.to_proto_list(values)
+        params = btrdb_pb2.InsertParams(
+            uuid=uu.bytes,
+            sync=False,
+            values=protoValues,
+            merge_policy=policy_map[policy],
+        )
+        fut = self.stub.Insert.future(params)
+        return self.AsyncInsertFuture(fut)
+
     @error_handler
     def deleteRange(self, uu, start, end):
         params = btrdb_pb2.DeleteParams(uuid=uu.bytes, start=start, end=end)
         result = self.stub.Delete(params)
         check_proto_stat(result.stat)
         return result.versionMajor
+
+    class AsyncDeleteRangeFuture(object):
+        def __init__(self, fut):
+            self.fut = fut
+        @error_handler
+        def result(self):
+            result = self.fut.result()
+            check_proto_stat(result.stat)
+            return result.versionMajor
+
+    @error_handler
+    def async_deleteRange(self, uu, start, end):
+        params = btrdb_pb2.DeleteParams(uuid=uu.bytes, start=start, end=end)
+        fut = self.stub.Delete.future(params)
+        return self.AsyncDeleteRangeFuture(fut)
 
     @error_handler
     def info(self):
@@ -259,6 +373,20 @@ class Endpoint(object):
         params = btrdb_pb2.FlushParams(uuid=uu.bytes)
         result = self.stub.Flush(params)
         check_proto_stat(result.stat)
+
+    class AsyncFlushFuture(object):
+        def __init__(self, fut):
+            self.fut = fut
+        @error_handler
+        def result(self):
+            result = self.fut.result()
+            check_proto_stat(result.stat)
+
+    @error_handler
+    def async_flush(self, uu):
+        params = btrdb_pb2.FlushParams(uuid=uu.bytes)
+        result = self.stub.Flush.future(params)
+        return self.AsyncFlushFuture(result)
 
     @error_handler
     def getMetadataUsage(self, prefix):
@@ -290,3 +418,18 @@ class Endpoint(object):
         for page in self.stub.SQLQuery(request):
             check_proto_stat(page.stat)
             yield page.SQLQueryRow
+
+    class AsyncSQLQueryFuture(object):
+        def __init__(self, fut):
+            self.fut = fut
+        @error_handler
+        def result(self):
+            for page in self.fut:
+                check_proto_stat(page.stat)
+                yield page.SQLQueryRow
+
+    @error_handler
+    def async_sql_query(self, stmt, params=[]):
+        params = btrdb_pb2.SQLQueryParams(query=stmt, params=params)
+        fut = self.stub.SQLQuery(params)
+        return self.AsyncSQLQueryFuture(fut)
