@@ -45,6 +45,15 @@ class Endpoint(object):
             check_proto_stat(result.stat)
             yield result.values, result.versionMajor
 
+    @error_handler
+    def arrowRawValues(self, uu, start, end, version=0):
+        params = btrdb_pb2.RawValuesParams(
+            uuid=uu.bytes, start=start, end=end, versionMajor=version
+        )
+        for result in self.stub.ArrowRawValues(params):
+            check_proto_stat(result.stat)
+            yield result.arrowBytes, result.versionMajor
+
     class AsyncRawValuesFuture(object):
         def __init__(self, fut):
             self.fut = fut
@@ -61,6 +70,12 @@ class Endpoint(object):
         )
         return self.AsyncRawValuesFuture(self.stub.RawValues(params))
 
+    def async_ArrowRawValues(self, uu, start, end, version=0):
+        params = btrdb_pb2.RawValuesParams(
+            uuid=uu.bytes, start=start, end=end, versionMajor=version
+        )
+        return self.AsyncRawValuesFuture(self.stub.ArrowRawValues(params))
+
     @error_handler
     def alignedWindows(self, uu, start, end, pointwidth, version=0):
         params = btrdb_pb2.AlignedWindowsParams(
@@ -75,6 +90,19 @@ class Endpoint(object):
             yield result.values, result.versionMajor
 
     @error_handler
+    def arrowAlignedWindows(self, uu, start, end, pointwidth, version=0):
+        params = btrdb_pb2.AlignedWindowsParams(
+            uuid=uu.bytes,
+            start=start,
+            end=end,
+            versionMajor=version,
+            pointWidth=int(pointwidth),
+        )
+        for result in self.stub.ArrowAlignedWindows(params):
+            check_proto_stat(result.stat)
+            yield result.arrowBytes, result.versionMajor
+
+    @error_handler
     def windows(self, uu, start, end, width, depth, version=0):
         params = btrdb_pb2.WindowsParams(
             uuid=uu.bytes,
@@ -87,6 +115,19 @@ class Endpoint(object):
         for result in self.stub.Windows(params):
             check_proto_stat(result.stat)
             yield result.values, result.versionMajor
+    @error_handler
+    def arrowWindows(self, uu, start, end, width, depth, version=0):
+        params = btrdb_pb2.WindowsParams(
+            uuid=uu.bytes,
+            start=start,
+            end=end,
+            versionMajor=version,
+            width=width,
+            depth=depth,
+        )
+        for result in self.stub.ArrowWindows(params):
+            check_proto_stat(result.stat)
+            yield result.arrowBytes, result.versionMajor
 
     @error_handler
     def streamInfo(self, uu, omitDescriptor, omitVersion):

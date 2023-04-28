@@ -4,8 +4,11 @@ package v5api;
 
 service BTrDB {
   rpc RawValues(RawValuesParams) returns (stream RawValuesResponse);
+  rpc ArrowRawValues(RawValuesParams) returns (stream ArrowRawValuesResponse);
   rpc AlignedWindows(AlignedWindowsParams) returns (stream AlignedWindowsResponse);
+  rpc ArrowAlignedWindows(AlignedWindowsParams) returns (stream ArrowAlignedWindowsResponse);
   rpc Windows(WindowsParams) returns (stream WindowsResponse);
+  rpc ArrowWindows(WindowsParams) returns (stream ArrowWindowsResponse);
   rpc StreamInfo(StreamInfoParams) returns (StreamInfoResponse);
   rpc SetStreamAnnotations(SetStreamAnnotationsParams) returns (SetStreamAnnotationsResponse);
   rpc SetStreamTags(SetStreamTagsParams) returns (SetStreamTagsResponse);
@@ -15,6 +18,7 @@ service BTrDB {
   rpc Nearest(NearestParams) returns (NearestResponse);
   rpc Changes(ChangesParams) returns (stream ChangesResponse);
   rpc Insert(InsertParams) returns (InsertResponse);
+  rpc ArrowInsert(ArrowInsertParams) returns (InsertResponse);
   rpc Delete(DeleteParams) returns (DeleteResponse);
   rpc Info(InfoParams) returns (InfoResponse);
   rpc FaultInject(FaultInjectParams) returns (FaultInjectResponse);

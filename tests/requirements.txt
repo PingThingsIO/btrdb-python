@@ -8,3 +8,5 @@ flake8<5.0.0
 numpy==1.20.3
 pandas
 tabulate==0.8.6
+pyarrow
+polars

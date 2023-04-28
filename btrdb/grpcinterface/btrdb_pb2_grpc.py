@@ -2,7 +2,7 @@
 """Client and server classes corresponding to protobuf-defined services."""
 import grpc
 
-import btrdb.grpcinterface.btrdb_pb2 as btrdb__pb2
+import btrdb_pb2 as btrdb__pb2
 
 
 class BTrDBStub(object):
@@ -19,15 +19,30 @@ class BTrDBStub(object):
                 request_serializer=btrdb__pb2.RawValuesParams.SerializeToString,
                 response_deserializer=btrdb__pb2.RawValuesResponse.FromString,
                 )
+        self.ArrowRawValues = channel.unary_stream(
+                '/v5api.BTrDB/ArrowRawValues',
+                request_serializer=btrdb__pb2.RawValuesParams.SerializeToString,
+                response_deserializer=btrdb__pb2.ArrowRawValuesResponse.FromString,
+                )
         self.AlignedWindows = channel.unary_stream(
                 '/v5api.BTrDB/AlignedWindows',
                 request_serializer=btrdb__pb2.AlignedWindowsParams.SerializeToString,
                 response_deserializer=btrdb__pb2.AlignedWindowsResponse.FromString,
                 )
+        self.ArrowAlignedWindows = channel.unary_stream(
+                '/v5api.BTrDB/ArrowAlignedWindows',
+                request_serializer=btrdb__pb2.AlignedWindowsParams.SerializeToString,
+                response_deserializer=btrdb__pb2.ArrowAlignedWindowsResponse.FromString,
+                )
         self.Windows = channel.unary_stream(
                 '/v5api.BTrDB/Windows',
                 request_serializer=btrdb__pb2.WindowsParams.SerializeToString,
                 response_deserializer=btrdb__pb2.WindowsResponse.FromString,
+                )
+        self.ArrowWindows = channel.unary_stream(
+                '/v5api.BTrDB/ArrowWindows',
+                request_serializer=btrdb__pb2.WindowsParams.SerializeToString,
+                response_deserializer=btrdb__pb2.ArrowWindowsResponse.FromString,
                 )
         self.StreamInfo = channel.unary_unary(
                 '/v5api.BTrDB/StreamInfo',
@@ -72,6 +87,11 @@ class BTrDBStub(object):
         self.Insert = channel.unary_unary(
                 '/v5api.BTrDB/Insert',
                 request_serializer=btrdb__pb2.InsertParams.SerializeToString,
+                response_deserializer=btrdb__pb2.InsertResponse.FromString,
+                )
+        self.ArrowInsert = channel.unary_unary(
+                '/v5api.BTrDB/ArrowInsert',
+                request_serializer=btrdb__pb2.ArrowInsertParams.SerializeToString,
                 response_deserializer=btrdb__pb2.InsertResponse.FromString,
                 )
         self.Delete = channel.unary_unary(
@@ -125,13 +145,31 @@ class BTrDBServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ArrowRawValues(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def AlignedWindows(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ArrowAlignedWindows(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def Windows(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ArrowWindows(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -186,6 +224,12 @@ class BTrDBServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Insert(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ArrowInsert(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -249,15 +293,30 @@ def add_BTrDBServicer_to_server(servicer, server):
                     request_deserializer=btrdb__pb2.RawValuesParams.FromString,
                     response_serializer=btrdb__pb2.RawValuesResponse.SerializeToString,
             ),
+            'ArrowRawValues': grpc.unary_stream_rpc_method_handler(
+                    servicer.ArrowRawValues,
+                    request_deserializer=btrdb__pb2.RawValuesParams.FromString,
+                    response_serializer=btrdb__pb2.ArrowRawValuesResponse.SerializeToString,
+            ),
             'AlignedWindows': grpc.unary_stream_rpc_method_handler(
                     servicer.AlignedWindows,
                     request_deserializer=btrdb__pb2.AlignedWindowsParams.FromString,
                     response_serializer=btrdb__pb2.AlignedWindowsResponse.SerializeToString,
             ),
+            'ArrowAlignedWindows': grpc.unary_stream_rpc_method_handler(
+                    servicer.ArrowAlignedWindows,
+                    request_deserializer=btrdb__pb2.AlignedWindowsParams.FromString,
+                    response_serializer=btrdb__pb2.ArrowAlignedWindowsResponse.SerializeToString,
+            ),
             'Windows': grpc.unary_stream_rpc_method_handler(
                     servicer.Windows,
                     request_deserializer=btrdb__pb2.WindowsParams.FromString,
                     response_serializer=btrdb__pb2.WindowsResponse.SerializeToString,
+            ),
+            'ArrowWindows': grpc.unary_stream_rpc_method_handler(
+                    servicer.ArrowWindows,
+                    request_deserializer=btrdb__pb2.WindowsParams.FromString,
+                    response_serializer=btrdb__pb2.ArrowWindowsResponse.SerializeToString,
             ),
             'StreamInfo': grpc.unary_unary_rpc_method_handler(
                     servicer.StreamInfo,
@@ -302,6 +361,11 @@ def add_BTrDBServicer_to_server(servicer, server):
             'Insert': grpc.unary_unary_rpc_method_handler(
                     servicer.Insert,
                     request_deserializer=btrdb__pb2.InsertParams.FromString,
+                    response_serializer=btrdb__pb2.InsertResponse.SerializeToString,
+            ),
+            'ArrowInsert': grpc.unary_unary_rpc_method_handler(
+                    servicer.ArrowInsert,
+                    request_deserializer=btrdb__pb2.ArrowInsertParams.FromString,
                     response_serializer=btrdb__pb2.InsertResponse.SerializeToString,
             ),
             'Delete': grpc.unary_unary_rpc_method_handler(
@@ -372,6 +436,23 @@ class BTrDB(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
+    def ArrowRawValues(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/v5api.BTrDB/ArrowRawValues',
+            btrdb__pb2.RawValuesParams.SerializeToString,
+            btrdb__pb2.ArrowRawValuesResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
     def AlignedWindows(request,
             target,
             options=(),
@@ -389,6 +470,23 @@ class BTrDB(object):
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
     @staticmethod
+    def ArrowAlignedWindows(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/v5api.BTrDB/ArrowAlignedWindows',
+            btrdb__pb2.AlignedWindowsParams.SerializeToString,
+            btrdb__pb2.ArrowAlignedWindowsResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
     def Windows(request,
             target,
             options=(),
@@ -402,6 +500,23 @@ class BTrDB(object):
         return grpc.experimental.unary_stream(request, target, '/v5api.BTrDB/Windows',
             btrdb__pb2.WindowsParams.SerializeToString,
             btrdb__pb2.WindowsResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ArrowWindows(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/v5api.BTrDB/ArrowWindows',
+            btrdb__pb2.WindowsParams.SerializeToString,
+            btrdb__pb2.ArrowWindowsResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
@@ -554,6 +669,23 @@ class BTrDB(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/v5api.BTrDB/Insert',
             btrdb__pb2.InsertParams.SerializeToString,
+            btrdb__pb2.InsertResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ArrowInsert(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/v5api.BTrDB/ArrowInsert',
+            btrdb__pb2.ArrowInsertParams.SerializeToString,
             btrdb__pb2.InsertResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

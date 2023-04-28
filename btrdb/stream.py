@@ -38,7 +38,6 @@ from btrdb.exceptions import (
     NoSuchPoint
 )
 
-
 ##########################################################################
 ## Module Variables
 ##########################################################################
@@ -656,6 +655,7 @@ class Stream(object):
                 materialized.append((RawPoint.from_proto(point), version))
         return materialized
 
+
     class _AsyncValuesFuture(object):
         def __init__(self, fut, version):
             self.version = version
@@ -1261,7 +1261,6 @@ class StreamSetBase(Sequence):
             for s in self._streams:
                 params.update({"version": versions[s.uuid]})
                 data.append(s.aligned_windows(**params))
-
 
         elif self.width is not None and self.depth is not None:
             # create list of stream.windows data (the windows method should
