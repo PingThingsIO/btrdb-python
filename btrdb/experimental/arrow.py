@@ -43,15 +43,16 @@ class ArrowStreamSet(StreamSet):
             )
             # exhausting the generator from above
             bytes_materialized = list(arr_bytes)
-            logger.debug(f"materialized bytes: {bytes_materialized}")
+
             logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
-            logger.debug(f"arr bytes: {arr_bytes}")
-            with pa.ipc.open_stream(bytes_materialized[0][0]) as reader:
-                schema = reader.schema
-                logger.debug(f"schema: {schema}")
-                df = reader.read_pandas()
-                logger.debug(f"Dataframe: {df}")
-            with pa.ipc.open_stream(bytes_materialized[0][0]) as reader:
-                pldf = pl.from_arrow(reader.read_all())
-                logger.debug(f"Polars: {pldf}")
-        return df, pldf
+            logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
+            # ignore versions for now
+            table_list = []
+            for b, _ in bytes_materialized:
+                with pa.ipc.open_stream(b) as reader:
+                    schema = reader.schema
+                    logger.debug(f"schema: {schema}")
+                    table_list.append(reader.read_all())
+        logger.debug(f"table list: {table_list}")
+        table = pa.concat_tables(table_list)
+        return table.to_pandas(), pl.from_arrow(table)
