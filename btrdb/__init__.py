@@ -23,7 +23,7 @@ from btrdb.utils.credentials import credentials_by_profile, credentials
 from btrdb.utils.ray import register_serializer
 from btrdb.stream import MINIMUM_TIME, MAXIMUM_TIME
 from warnings import warn
-
+import btrdb.experimental.arrow
 ##########################################################################
 ## Module Variables
 ##########################################################################

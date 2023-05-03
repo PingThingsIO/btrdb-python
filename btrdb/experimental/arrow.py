@@ -1,5 +1,6 @@
 import logging
 
+import polars as pl
 import pyarrow as pa
 
 import btrdb
@@ -34,18 +35,23 @@ class ArrowStreamSet(StreamSet):
     # TODO: need to ensure we exhaust the generator from the endpoint
     def values(self, start: int, end: int):
         """Return a numpy array from arrow bytes"""
-        list_of_data = []
         logger.debug("In values method for ArrowStreamSet")
         for s in self._streams:
             logger.debug(f"For stream - {s.uuid} -  {s.name}")
-            arr_bytes, ver = s._btrdb.ep.arrowRawValues(
-                uu=s.uu.bytes, start=start, end=end, version=0
+            arr_bytes = s._btrdb.ep.arrowRawValues(
+                uu=s.uuid, start=start, end=end, version=0
             )
-            with pa.ipc.open_stream(arr_bytes) as reader:
+            # exhausting the generator from above
+            bytes_materialized = list(arr_bytes)
+            logger.debug(f"materialized bytes: {bytes_materialized}")
+            logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
+            logger.debug(f"arr bytes: {arr_bytes}")
+            with pa.ipc.open_stream(bytes_materialized[0][0]) as reader:
                 schema = reader.schema
-                metadata = reader.metadata
                 logger.debug(f"schema: {schema}")
-                logger.debug(f"metadata: {metadata}")
-                batches = [b for b in reader]
-            list_of_data.append(pa.table(data=batches, schema=schema))
-        return list_of_data
+                df = reader.read_pandas()
+                logger.debug(f"Dataframe: {df}")
+            with pa.ipc.open_stream(bytes_materialized[0][0]) as reader:
+                pldf = pl.from_arrow(reader.read_all())
+                logger.debug(f"Polars: {pldf}")
+        return df, pldf
