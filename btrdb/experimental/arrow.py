@@ -1,5 +1,6 @@
 import logging
 
+import numpy as np
 import pandas as pd
 import polars as pl
 import pyarrow as pa
@@ -15,13 +16,14 @@ class ArrowStream(Stream):
     """Arrow-accelerated queries where applicable for a single stream."""
 
     def __init__(self, btrdb: btrdb.BTrDB = None, uuid: str = None):
+        self._data = None
         super().__init__(btrdb=btrdb, uuid=uuid)
 
     @classmethod
     def from_stream(cls, stream: btrdb.stream.Stream):
         return cls(uuid=stream.uuid, btrdb=stream._btrdb)
 
-    def values(self, start: int, end: int) -> pd.DataFrame:
+    def values(self, start: int, end: int):
         """Return the raw timeseries data between start and end.
 
         Parameters
@@ -30,6 +32,11 @@ class ArrowStream(Stream):
             The beginning time to return data from, in nanoseconds.
         end : int, required
             The end time to return data from, in nanoseconds.
+
+        Returns
+        -------
+        btrdb.experimenal.arrow.ArrowStream
+            The stream object with the populated _data member.
         """
         logger.debug(f"For stream - {self.uuid} -  {self.name}")
         arr_bytes = self._btrdb.ep.arrowRawValues(
@@ -49,11 +56,12 @@ class ArrowStream(Stream):
                 table_list.append(reader.read_all())
         logger.debug(f"table list: {table_list}")
         table = pa.concat_tables(table_list)
-        return table.to_pandas()
+        self._data = table
+        return self
 
     def windows(
         self, start: int, end: int, width: int, depth: int = 0, version: int = 0
-    ) -> pd.DataFrame:
+    ):
         """Read arbitrarily-sized windows of data from BTrDB.
 
         StatPoint objects will be returned representing the data for each window.
@@ -73,7 +81,8 @@ class ArrowStream(Stream):
 
         Returns
         -------
-        pd.DataFrame
+        btrdb.experimenal.arrow.ArrowStream
+            The stream object with the populated _data member.
         """
         logger.debug(f"For stream - {self.uuid} -  {self.name}")
         arr_bytes = self._btrdb.ep.arrowWindows(
@@ -93,11 +102,12 @@ class ArrowStream(Stream):
                 table_list.append(reader.read_all())
         logger.debug(f"table list: {table_list}")
         table = pa.concat_tables(table_list)
-        return table.to_pandas()
+        self._data = table
+        return self
 
     def aligned_windows(
         self, start: int, end: int, pointwidth: int, version: int = 0
-    ) -> pd.DataFrame:
+    ):
         """Read statistical aggregates of windows of data from BTrDB.
 
         Query BTrDB for aggregates (or roll ups or windows) of the time series
@@ -127,6 +137,11 @@ class ArrowStream(Stream):
         version : int
             Version of the stream to query
 
+        Returns
+        -------
+        btrdb.experimenal.arrow.ArrowStream
+            The stream object with the populated _data member.
+
         """
         logger.debug(f"For stream - {self.uuid} -  {self.name}")
         arr_bytes = self._btrdb.ep.arrowAlignedWindows(
@@ -146,7 +161,33 @@ class ArrowStream(Stream):
                 table_list.append(reader.read_all())
         logger.debug(f"table list: {table_list}")
         table = pa.concat_tables(table_list)
-        return table.to_pandas()
+        self._data = table
+        return self
+
+    def to_pyarrow(self) -> pa.Table:
+        """Return the _data of the stream as a pyarrow table."""
+        if self._data is not None:
+            return self._data
+
+    def to_df(self) -> pd.DataFrame:
+        """Return the _data member of the stream as a pandas dataframe."""
+        if self._data is not None:
+            return self._data.to_pandas()
+
+    def to_numpy(self) -> np.ndarray:
+        """Return the _data member of the stream as a numpy array.
+
+        Notes
+        -----
+        This currently converts from a pyarrow table to a pandas dataframe and then to a numpy array.
+        """
+        if self._data is not None:
+            return self._data.to_pandas().values
+
+    def to_polars(self) -> pl.DataFrame:
+        """Return the _data member of the stream as a polars dataframe."""
+        if self._data is not None:
+            return pl.from_arrow(self._data)
 
 
 class ArrowStreamSet(StreamSet):
