@@ -1,4 +1,5 @@
 import logging
+from collections import deque
 
 import numpy as np
 import pandas as pd
@@ -7,9 +8,10 @@ import pyarrow as pa
 
 import btrdb
 from btrdb.stream import Stream, StreamSet
+from btrdb.transformers import _stream_names, _STAT_PROPERTIES
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 
 class ArrowStream(Stream):
@@ -48,15 +50,10 @@ class ArrowStream(Stream):
         logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
         logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
         # ignore versions for now
-        table_list = []
-        for b, _ in bytes_materialized:
-            with pa.ipc.open_stream(b) as reader:
-                schema = reader.schema
-                logger.debug(f"schema: {schema}")
-                table_list.append(reader.read_all())
-        logger.debug(f"table list: {table_list}")
-        table = pa.concat_tables(table_list)
-        self._data = table
+        self._data = _materialize_stream_as_table(bytes_materialized)
+        self._data = self._data.rename_columns(
+            ["time", self.collection + "/" + self.name]
+        )
         return self
 
     def windows(
@@ -94,20 +91,14 @@ class ArrowStream(Stream):
         logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
         logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
         # ignore versions for now
-        table_list = []
-        for b, _ in bytes_materialized:
-            with pa.ipc.open_stream(b) as reader:
-                schema = reader.schema
-                logger.debug(f"schema: {schema}")
-                table_list.append(reader.read_all())
-        logger.debug(f"table list: {table_list}")
-        table = pa.concat_tables(table_list)
-        self._data = table
+        self._data = _materialize_stream_as_table(bytes_materialized)
+        stream_names = [
+            "/".join([self.collection, self.name, prop]) for prop in _STAT_PROPERTIES
+        ]
+        self._data = self._data.rename_columns(["time", *stream_names])
         return self
 
-    def aligned_windows(
-        self, start: int, end: int, pointwidth: int, version: int = 0
-    ):
+    def aligned_windows(self, start: int, end: int, pointwidth: int, version: int = 0):
         """Read statistical aggregates of windows of data from BTrDB.
 
         Query BTrDB for aggregates (or roll ups or windows) of the time series
@@ -139,7 +130,7 @@ class ArrowStream(Stream):
 
         Returns
         -------
-        btrdb.experimenal.arrow.ArrowStream
+        btrdb.experimental.arrow.ArrowStream
             The stream object with the populated _data member.
 
         """
@@ -153,15 +144,11 @@ class ArrowStream(Stream):
         logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
         logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
         # ignore versions for now
-        table_list = []
-        for b, _ in bytes_materialized:
-            with pa.ipc.open_stream(b) as reader:
-                schema = reader.schema
-                logger.debug(f"schema: {schema}")
-                table_list.append(reader.read_all())
-        logger.debug(f"table list: {table_list}")
-        table = pa.concat_tables(table_list)
-        self._data = table
+        self._data = _materialize_stream_as_table(bytes_materialized)
+        stream_names = [
+            "/".join([self.collection, self.name, prop]) for prop in _STAT_PROPERTIES
+        ]
+        self._data = self._data.rename_columns(["time", *stream_names])
         return self
 
     def to_pyarrow(self) -> pa.Table:
@@ -169,25 +156,62 @@ class ArrowStream(Stream):
         if self._data is not None:
             return self._data
 
-    def to_df(self) -> pd.DataFrame:
+    def to_dataframe(self) -> pd.DataFrame:
         """Return the _data member of the stream as a pandas dataframe."""
         if self._data is not None:
-            return self._data.to_pandas()
+            df = self._data.to_pandas()
+            df = df.set_index("time")
+            return df
 
-    def to_numpy(self) -> np.ndarray:
-        """Return the _data member of the stream as a numpy array.
+    def to_array(self) -> np.array:
+        return self._data.to_pandas().values
 
-        Notes
-        -----
-        This currently converts from a pyarrow table to a pandas dataframe and then to a numpy array.
-        """
-        if self._data is not None:
-            return self._data.to_pandas().values
+    def to_csv(self):
+        raise NotImplementedError(
+            """Method to_csv has not been implemented yet for Arrow-backed btrdb Streams/StreamSets.
+        Please convert to a pandas dataframe, polars dataframe, pyarrow table, or numpy array to write to csv."""
+        )
+
+    def to_series(self):
+        raise NotImplementedError(
+            """Method to_series has not been implemented for Arrow-backed btrdb Streams/Streamsets.
+        Please convert your streamset to a pandas dataframe."""
+        )
+
+    def to_dict(self):
+        raise NotImplementedError(
+            """Method to_dict has not been implemented yet for Arrow-backed btrdb Streams/StreamSets.
+        Using to_pyarrow to return the data as a pyarrow Table and then calling Table.to_pydict can work in the meantime."""
+        )
 
     def to_polars(self) -> pl.DataFrame:
         """Return the _data member of the stream as a polars dataframe."""
         if self._data is not None:
             return pl.from_arrow(self._data)
+
+
+def _materialize_stream_as_table(arrow_bytes):
+    table_list = []
+    for b, _ in arrow_bytes:
+        with pa.ipc.open_stream(b) as reader:
+            schema = reader.schema
+            logger.debug(f"schema: {schema}")
+            table_list.append(reader.read_all())
+    logger.debug(f"table list: {table_list}")
+    table = pa.concat_tables(table_list)
+    return table
+
+
+def _coalesce_table_deque(tables: deque):
+    main_table = tables.popleft()
+    idx = 0
+    while len(tables) != 0:
+        idx = idx + 1
+        t2 = tables.popleft()
+        main_table = main_table.join(
+            t2, "time", join_type="full outer", right_suffix=f"_{idx}"
+        )
+    return main_table
 
 
 class ArrowStreamSet(StreamSet):
@@ -200,8 +224,6 @@ class ArrowStreamSet(StreamSet):
     def from_streamset(cls, streamset: btrdb.stream.StreamSet):
         return cls(streams=streamset._streams)
 
-    # TODO: Need to figure out how to append multiple streams
-    # TODO: Need to support multiindex, or key on uuid
     def values(self, start: int, end: int):
         """Return a numpy array from arrow bytes
 
@@ -213,7 +235,7 @@ class ArrowStreamSet(StreamSet):
             The end time to return data from, in nanoseconds.
         """
         logger.debug("In values method for ArrowStreamSet")
-        stream_tables = []
+        stream_tables = deque()
         for s in self._streams:
             logger.debug(f"For stream - {s.uuid} -  {s.name}")
             arr_bytes = s._btrdb.ep.arrowRawValues(
@@ -225,20 +247,19 @@ class ArrowStreamSet(StreamSet):
             logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
             logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
             # ignore versions for now
-            table_list = []
-            for b, _ in bytes_materialized:
-                with pa.ipc.open_stream(b) as reader:
-                    schema = reader.schema
-                    logger.debug(f"schema: {schema}")
-                    table_list.append(reader.read_all())
-            logger.debug(f"table list: {table_list}")
-            table = pa.concat_tables(table_list)
+            table = _materialize_stream_as_table(bytes_materialized)
             stream_tables.append(table)
-        return table.to_pandas(), pl.from_arrow(table)
+        self._data = _coalesce_table_deque(stream_tables)
+        col_names = [
+            s.collection + "/" + s.name + f",{idx}"
+            for idx, s in enumerate(self._streams)
+        ]
+        self._data = self._data.rename_columns(["time", *col_names])
+        return self
 
     def windows(
         self, start: int, end: int, width: int, depth: int = 0, version: int = 0
-    ) -> pd.DataFrame:
+    ):
         """Read arbitrarily-sized windows of data from BTrDB.
 
         StatPoint objects will be returned representing the data for each window.
@@ -260,7 +281,9 @@ class ArrowStreamSet(StreamSet):
         -------
         pd.DataFrame
         """
-        stream_tables = []
+        self.width = int(width)
+        self.depth = int(depth)
+        stream_tables = deque()
         for s in self._streams:
             logger.debug(f"For stream - {s.uuid} -  {s.name}")
             arr_bytes = s._btrdb.ep.arrowWindows(
@@ -272,16 +295,10 @@ class ArrowStreamSet(StreamSet):
             logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
             logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
             # ignore versions for now
-            table_list = []
-            for b, _ in bytes_materialized:
-                with pa.ipc.open_stream(b) as reader:
-                    schema = reader.schema
-                    logger.debug(f"schema: {schema}")
-                    table_list.append(reader.read_all())
-            logger.debug(f"table list: {table_list}")
-            table = pa.concat_tables(table_list)
+            table = _materialize_stream_as_table(bytes_materialized)
             stream_tables.append(table)
-        return table.to_pandas()
+        self._data = _coalesce_table_deque(stream_tables)
+        return self
 
     def aligned_windows(
         self, start: int, end: int, pointwidth: int, version: int = 0
@@ -316,7 +333,8 @@ class ArrowStreamSet(StreamSet):
             Version of the stream to query
 
         """
-        stream_tables = []
+        self.pointwidth = int(pointwidth)
+        stream_tables = deque()
         for s in self._streams:
             logger.debug(f"For stream - {s.uuid} -  {s.name}")
             arr_bytes = s._btrdb.ep.arrowAlignedWindows(
@@ -328,13 +346,35 @@ class ArrowStreamSet(StreamSet):
             logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
             logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
             # ignore versions for now
-            table_list = []
-            for b, _ in bytes_materialized:
-                with pa.ipc.open_stream(b) as reader:
-                    schema = reader.schema
-                    logger.debug(f"schema: {schema}")
-                    table_list.append(reader.read_all())
-            logger.debug(f"table list: {table_list}")
-            table = pa.concat_tables(table_list)
-            stream_tables.append(table)
-        return table.to_pandas()
+            stream_tables.append(_materialize_stream_as_table(bytes_materialized))
+        self._data = _coalesce_table_deque(stream_tables)
+        return self
+
+    def to_pyarrow(self):
+        return self._data
+
+    def to_polars(self):
+        return pl.from_arrow(self._data)
+
+    def to_csv(self):
+        raise NotImplementedError(
+            """Method to_csv has not been implemented yet for Arrow-backed btrdb Streams/StreamSets.
+        Please convert to a pandas dataframe, polars dataframe, pyarrow table, or numpy array to write to csv."""
+        )
+
+    def to_series(self):
+        raise NotImplementedError(
+            """Method to_series has not been implemented for Arrow-backed btrdb Streams/Streamsets.
+        Please convert your streamset to a pandas dataframe."""
+        )
+
+    def to_dict(self):
+        raise NotImplementedError(
+            """Method to_dict has not been implemented yet for Arrow-backed btrdb Streams/StreamSets.
+        Using to_pyarrow to return the data as a pyarrow Table and then calling Table.to_pydict can work in the meantime."""
+        )
+
+    def to_table(self):
+        raise NotImplementedError(
+            """Method to_table has not been implemented yet for Arrow-backed btrdb Streams/StreamSets."""
+        )

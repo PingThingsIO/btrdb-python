@@ -35,14 +35,14 @@ from btrdb.exceptions import (
     InvalidOperation,
     InvalidCollection,
     StreamNotFoundError,
-    NoSuchPoint
+    NoSuchPoint,
 )
 
 ##########################################################################
 ## Module Variables
 ##########################################################################
 
-STREAMSET_API_DEFAULT_PARALLEL_REQUESTS=64
+STREAMSET_API_DEFAULT_PARALLEL_REQUESTS = 64
 INSERT_BATCH_SIZE = 50000
 MINIMUM_TIME = -(16 << 56)
 MAXIMUM_TIME = (48 << 56) - 1
@@ -56,6 +56,7 @@ except Exception:
 ##########################################################################
 ## Stream Classes
 ##########################################################################
+
 
 class Stream(object):
     """
@@ -73,13 +74,21 @@ class Stream(object):
     """
 
     def __init__(self, btrdb, uuid, **db_values):
-        db_args = ('known_to_exist', 'collection', 'tags', 'annotations', 'property_version')
+        db_args = (
+            "known_to_exist",
+            "collection",
+            "tags",
+            "annotations",
+            "property_version",
+        )
         for key in db_args:
             value = db_values.pop(key, None)
             setattr(self, "_{}".format(key), value)
         if db_values:
             bad_keys = ", ".join(db_values.keys())
-            raise BTRDBTypeError("got unexpected db_values argument(s) '{}'".format(bad_keys))
+            raise BTRDBTypeError(
+                "got unexpected db_values argument(s) '{}'".format(bad_keys)
+            )
 
         self._btrdb = btrdb
         self._uuid = uuid
@@ -93,7 +102,13 @@ class Stream(object):
         """
 
         ep = self._btrdb.ep
-        self._collection, self._property_version, self._tags, self._annotations, _ = ep.streamInfo(self._uuid, False, True)
+        (
+            self._collection,
+            self._property_version,
+            self._tags,
+            self._annotations,
+            _,
+        ) = ep.streamInfo(self._uuid, False, True)
         self._known_to_exist = True
 
         # deserialize annoation values
@@ -132,7 +147,14 @@ class Stream(object):
                 return False
             raise bte
 
-    def count(self, start=MINIMUM_TIME, end=MAXIMUM_TIME, pointwidth=62, precise=False, version=0):
+    def count(
+        self,
+        start=MINIMUM_TIME,
+        end=MAXIMUM_TIME,
+        pointwidth=62,
+        precise=False,
+        version=0,
+    ):
         """
         Compute the total number of points in the stream
 
@@ -177,15 +199,17 @@ class Stream(object):
         """
 
         if not precise:
-            pointwidth = min(pointwidth, pw.from_nanoseconds(to_nanoseconds(end) - to_nanoseconds(start))-1)
+            pointwidth = min(
+                pointwidth,
+                pw.from_nanoseconds(to_nanoseconds(end) - to_nanoseconds(start)) - 1,
+            )
             points = self.aligned_windows(start, end, pointwidth, version)
-            return  sum([point.count for point, _ in points])
+            return sum([point.count for point, _ in points])
 
         depth = 0
         width = to_nanoseconds(end) - to_nanoseconds(start)
         points = self.windows(start, end, width, depth, version)
-        return  sum([point.count for point, _ in points])
-
+        return sum([point.count for point, _ in points])
 
     @property
     def btrdb(self):
@@ -414,6 +438,7 @@ class Stream(object):
     class _AsyncVersionFuture(object):
         def __init__(self, fut):
             self.fut = fut
+
         def result(self):
             return self.fut.result()[4]
 
@@ -421,7 +446,7 @@ class Stream(object):
         fut = self._btrdb.ep.async_streamInfo(self._uuid, True, False)
         return self._AsyncVersionFuture(fut)
 
-    def insert(self, data, merge='never'):
+    def insert(self, data, merge="never"):
         """
         Insert new data in the form (time, value) into the series.
 
@@ -452,7 +477,7 @@ class Stream(object):
         i = 0
         version = 0
         while i < len(data):
-            batch = data[i:i + INSERT_BATCH_SIZE]
+            batch = data[i : i + INSERT_BATCH_SIZE]
             version = self._btrdb.ep.insert(self._uuid, batch, merge)
             i += INSERT_BATCH_SIZE
         return version
@@ -460,17 +485,18 @@ class Stream(object):
     class _AsyncInsertFuture(object):
         def __init__(self, futs):
             self.futs = futs
+
         def result(self):
             version = 0
             for fut in self.futs:
                 version = fut.result()
             return version
 
-    def _async_insert(self, data, merge='never'):
+    def _async_insert(self, data, merge="never"):
         futs = []
         i = 0
         while i < len(data):
-            batch = data[i:i + INSERT_BATCH_SIZE]
+            batch = data[i : i + INSERT_BATCH_SIZE]
             futs.append(self._btrdb.ep.async_insert(self._uuid, batch, merge))
             i += INSERT_BATCH_SIZE
         return self._AsyncInsertFuture(futs)
@@ -479,13 +505,15 @@ class Stream(object):
         tags = self.tags() if tags is None else tags
         collection = self.collection if collection is None else collection
         if collection is None:
-            raise BTRDBValueError("collection must be provided to update tags or collection")
+            raise BTRDBValueError(
+                "collection must be provided to update tags or collection"
+            )
 
         self._btrdb.ep.setStreamTags(
             uu=self.uuid,
             expected=self._property_version,
             tags=tags,
-            collection=collection
+            collection=collection,
         )
 
     def _update_annotations(self, annotations, encoder, replace):
@@ -499,16 +527,25 @@ class Stream(object):
 
         removals = []
         if replace:
-            removals = [i for i in self._annotations.keys() if i not in annotations.keys()]
+            removals = [
+                i for i in self._annotations.keys() if i not in annotations.keys()
+            ]
 
         self._btrdb.ep.setStreamAnnotations(
             uu=self.uuid,
             expected=self._property_version,
             changes=serialized,
-            removals=removals
+            removals=removals,
         )
 
-    def update(self, tags=None, annotations=None, collection=None, encoder=AnnotationEncoder, replace=False):
+    def update(
+        self,
+        tags=None,
+        annotations=None,
+        collection=None,
+        encoder=AnnotationEncoder,
+        replace=False,
+    ):
         """
         Updates metadata including tags, annotations, and collection as an
         UPSERT operation.
@@ -558,7 +595,9 @@ class Stream(object):
 
         """
         if tags is None and annotations is None and collection is None:
-            raise BTRDBValueError("you must supply a tags, annotations, or collection argument")
+            raise BTRDBValueError(
+                "you must supply a tags, annotations, or collection argument"
+            )
 
         if tags is not None and isinstance(tags, dict) is False:
             raise BTRDBTypeError("tags must be of type dict")
@@ -603,12 +642,14 @@ class Stream(object):
             The version of the new stream created
 
         """
-        return self._btrdb.ep.deleteRange(self._uuid, to_nanoseconds(start),
-            to_nanoseconds(end))
+        return self._btrdb.ep.deleteRange(
+            self._uuid, to_nanoseconds(start), to_nanoseconds(end)
+        )
 
     def _async_delete(self, start, end):
-        return self._btrdb.ep.async_deleteRange(self._uuid, to_nanoseconds(start),
-            to_nanoseconds(end))
+        return self._btrdb.ep.async_deleteRange(
+            self._uuid, to_nanoseconds(start), to_nanoseconds(end)
+        )
 
     def values(self, start, end, version=0):
         """
@@ -655,11 +696,11 @@ class Stream(object):
                 materialized.append((RawPoint.from_proto(point), version))
         return materialized
 
-
     class _AsyncValuesFuture(object):
         def __init__(self, fut, version):
             self.version = version
             self.fut = fut
+
         def result(self):
             materialized = []
             point_windows = self.fut.result()
@@ -721,7 +762,9 @@ class Stream(object):
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
 
-        windows = self._btrdb.ep.alignedWindows(self._uuid, start, end, pointwidth, version)
+        windows = self._btrdb.ep.alignedWindows(
+            self._uuid, start, end, pointwidth, version
+        )
         for stat_points, version in windows:
             for point in stat_points:
                 materialized.append((StatPoint.from_proto(point), version))
@@ -807,15 +850,15 @@ class Stream(object):
 
         """
         try:
-            rp, version = self._btrdb.ep.nearest(self._uuid,
-                to_nanoseconds(time), version, backward)
+            rp, version = self._btrdb.ep.nearest(
+                self._uuid, to_nanoseconds(time), version, backward
+            )
         except BTrDBError as exc:
             if not isinstance(exc, NoSuchPoint):
                 raise
             return None
 
         return RawPoint.from_proto(rp), version
-
 
     def obliterate(self):
         """
@@ -844,12 +887,13 @@ class Stream(object):
         return self._btrdb.ep.async_flush(self._uuid)
 
     def __repr__(self):
-        return "<Stream collection={} name={}>".format(self.collection,
-            self.name)
+        return "<Stream collection={} name={}>".format(self.collection, self.name)
+
 
 ##########################################################################
 ## StreamSet  Classes
 ##########################################################################
+
 
 class StreamSetBase(Sequence):
     """
@@ -867,7 +911,7 @@ class StreamSetBase(Sequence):
 
     @property
     def allow_window(self):
-        return not bool(self.pointwidth or (self.width and self.depth))
+        return not bool(self.pointwidth or (self.width and self.depth == 0))
 
     def _latest_versions(self):
         versions = {}
@@ -908,7 +952,6 @@ class StreamSetBase(Sequence):
                 if not isinstance(key, uuidlib.UUID):
                     raise BTRDBTypeError("version keys must be type UUID")
 
-
         self._pinned_versions = self._latest_versions() if not versions else versions
         return self
 
@@ -929,7 +972,9 @@ class StreamSetBase(Sequence):
             A dict containing the stream UUID and version ints as key/values
 
         """
-        return self._pinned_versions if self._pinned_versions else self._latest_versions()
+        return (
+            self._pinned_versions if self._pinned_versions else self._latest_versions()
+        )
 
     def count(self):
         """
@@ -1041,7 +1086,9 @@ class StreamSetBase(Sequence):
         start = params.get("start", None)
 
         if (end is not None and end <= now) or (start is not None and start > now):
-            raise BTRDBValueError("current time is not included in filtered stream range")
+            raise BTRDBValueError(
+                "current time is not included in filtered stream range"
+            )
 
         for s in self._streams:
             version = self.versions()[s.uuid]
@@ -1050,8 +1097,16 @@ class StreamSetBase(Sequence):
 
         return tuple(latest)
 
-    def filter(self, start=None, end=None, collection=None, name=None, unit=None,
-               tags=None, annotations=None):
+    def filter(
+        self,
+        start=None,
+        end=None,
+        collection=None,
+        name=None,
+        unit=None,
+        tags=None,
+        annotations=None,
+    ):
         """
         Provides a new StreamSet instance containing stored query parameters and
         stream objects that match filtering criteria.
@@ -1101,43 +1156,63 @@ class StreamSetBase(Sequence):
         # filter by collection
         if collection is not None:
             if isinstance(collection, RE_PATTERN):
-                obj._streams = [s for s in obj._streams for m in [collection.search(s.collection)] if m]
+                obj._streams = [
+                    s
+                    for s in obj._streams
+                    for m in [collection.search(s.collection)]
+                    if m
+                ]
             elif isinstance(collection, str):
-                obj._streams = [s for s in obj._streams if s.collection.lower() == collection.lower()]
+                obj._streams = [
+                    s
+                    for s in obj._streams
+                    if s.collection.lower() == collection.lower()
+                ]
             else:
                 raise BTRDBTypeError("collection must be string or compiled regex")
 
         # filter by name
         if name is not None:
             if isinstance(name, RE_PATTERN):
-                obj._streams = [s for s in obj._streams for m in [name.search(s.name)] if m]
+                obj._streams = [
+                    s for s in obj._streams for m in [name.search(s.name)] if m
+                ]
             elif isinstance(name, str):
-                obj._streams = [s for s in obj._streams if s.name.lower() == name.lower()]
+                obj._streams = [
+                    s for s in obj._streams if s.name.lower() == name.lower()
+                ]
             else:
                 raise BTRDBTypeError("name must be string or compiled regex")
 
         # filter by unit
         if unit is not None:
             if isinstance(unit, RE_PATTERN):
-                obj._streams = [s for s in obj._streams for m in [unit.search(s.tags()["unit"])] if m]
+                obj._streams = [
+                    s
+                    for s in obj._streams
+                    for m in [unit.search(s.tags()["unit"])]
+                    if m
+                ]
             elif isinstance(unit, str):
-                obj._streams = [s for s in obj._streams if s.tags().get("unit", "").lower() == unit.lower()]
+                obj._streams = [
+                    s
+                    for s in obj._streams
+                    if s.tags().get("unit", "").lower() == unit.lower()
+                ]
             else:
                 raise BTRDBTypeError("unit must be string or compiled regex")
 
         # filter by tags
         if tags:
             # filters if the subset of the tags matches the given tags
-            obj._streams = [
-                s for s in obj._streams
-                if tags.items() <= s.tags().items()
-            ]
+            obj._streams = [s for s in obj._streams if tags.items() <= s.tags().items()]
 
         # filter by annotations
         if annotations:
             # filters if the subset of the annotations matches the given annotations
             obj._streams = [
-                s for s in obj._streams
+                s
+                for s in obj._streams
                 if annotations.items() <= s.annotations()[0].items()
             ]
 
@@ -1158,7 +1233,7 @@ class StreamSetBase(Sequence):
             Returns a new copy of the instance
 
         """
-        protected = ('_streams', )
+        protected = ("_streams",)
         clone = self.__class__(self._streams)
         for attr, val in self.__dict__.items():
             if attr not in protected:
@@ -1284,7 +1359,6 @@ class StreamSetBase(Sequence):
 
         return data
 
-
     def rows(self):
         """
         Returns a materialized list of tuples where each tuple contains the
@@ -1311,7 +1385,6 @@ class StreamSetBase(Sequence):
 
             # add next values from streams into buffer
             for stream_idx, data in enumerate(streamset_data):
-
                 if buffer.active[stream_idx]:
                     try:
                         point, _ = next(data)
@@ -1356,7 +1429,7 @@ class StreamSetBase(Sequence):
 
         return result
 
-    def insert(self, data, merge='never'):
+    def insert(self, data, merge="never"):
         """
         Inserts points across the stream set using efficient request batching.
 
@@ -1365,7 +1438,7 @@ class StreamSetBase(Sequence):
         data: list[list[tuple[int, float]]] | {uuid:list[tuple[int, float]]}
 
         """
-        assert(len(data) == len(self._streams))
+        assert len(data) == len(self._streams)
         if type(data) is dict:
             data = [data[s.uuid] for s in self._streams]
         versions = []
@@ -1399,7 +1472,7 @@ class StreamSetBase(Sequence):
         """
         futs = deque()
         for s in self._streams:
-            if len(futs) == 1: # STREAMSET_API_DEFAULT_PARALLEL_REQUESTS
+            if len(futs) == 1:  # STREAMSET_API_DEFAULT_PARALLEL_REQUESTS
                 futs.pop().result()
             futs.appendleft(s._async_obliterate())
         while len(futs) != 0:
@@ -1419,9 +1492,7 @@ class StreamSetBase(Sequence):
 
     def __repr__(self):
         token = "stream" if len(self) == 1 else "streams"
-        return "<{}({} {})>".format(
-            self.__class__.__name__, len(self._streams), token
-        )
+        return "<{}({} {})>".format(self.__class__.__name__, len(self._streams), token)
 
     def __str__(self):
         token = "stream" if len(self) == 1 else "streams"
@@ -1449,6 +1520,7 @@ class StreamSet(StreamSetBase, StreamSetTransformer):
     """
     Public class for a collection of streams
     """
+
     pass
 
 
@@ -1456,10 +1528,12 @@ class StreamSet(StreamSetBase, StreamSetTransformer):
 ## Utility Classes
 ##########################################################################
 
+
 class StreamFilter(object):
     """
     Object for storing requested filtering options
     """
+
     def __init__(self, start=None, end=None):
         self.start = to_nanoseconds(start) if start else None
         self.end = to_nanoseconds(end) if end else None
