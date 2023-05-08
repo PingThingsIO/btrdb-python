@@ -54,10 +54,13 @@ class Endpoint(object):
         params = btrdb_pb2.RawValuesParams(
             uuid=uu.bytes, start=start, end=end, versionMajor=version
         )
-        result = await self.stub.ArrowRawValues(params)
-        for r in result:
+        logger.debug(f"Params: {params}")
+        result = self.stub.ArrowRawValues(params)
+        logger.debug(f"RESULT: {result}")
+        async for r in result:
+            logger.debug(f"R: {r}")
             check_proto_stat(r.stat)
-            yield result.arrowBytes, result.versionMajor
+            yield r.arrowBytes, r.versionMajor
         # for result in self.stub.ArrowRawValues(params):
         #     check_proto_stat(result.stat)
         #     yield result.arrowBytes, result.versionMajor

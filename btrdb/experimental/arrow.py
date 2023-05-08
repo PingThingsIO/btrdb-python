@@ -227,9 +227,11 @@ class ArrowStreamSet(StreamSet):
         return cls(streams=streamset._streams)
 
     async def _get_values(self, stream, start: int, end: int, version: int = 0):
-        arr_bytes = await stream._btrdb.ep.arrowRawValues(
+        arr_bytes = []
+        async for results in stream._btrdb.ep.arrowRawValues(
             uu=stream.uuid, start=start, end=end, version=version
-        )
+        ):
+            arr_bytes.append(results)
         bytes_materialized = list(arr_bytes)
         return _materialize_stream_as_table(bytes_materialized)
 
@@ -248,11 +250,11 @@ class ArrowStreamSet(StreamSet):
         Uses asynchronous calls, experimental.
         """
         results = await asyncio.gather(
-            *(self._get_values(s.uuid, start, end) for s in self._streams)
+            *(self._get_values(s, start, end) for s in self._streams)
         )
         return results
 
-    def values(self, start: int, end: int, as_async: bool = True):
+    async def values(self, start: int, end: int, as_async: bool = True):
         """Query and retrieve raw value data from btrdb.
 
         Parameters
@@ -285,7 +287,7 @@ class ArrowStreamSet(StreamSet):
             ]
             self._data = self._data.rename_columns(["time", *col_names])
         else:
-            tables = asyncio.run(self._values_async(start, end), debug=True)
+            tables = await self._values_async(start,end)
             stream_tables = deque(tables)
             self._data = _coalesce_table_deque(stream_tables)
             col_names = [
