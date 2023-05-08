@@ -38,6 +38,9 @@ from btrdb.exceptions import (
     NoSuchPoint,
 )
 
+import logging
+logger = logging.getLogger(__name__)
+
 ##########################################################################
 ## Module Variables
 ##########################################################################
@@ -415,7 +418,7 @@ class Stream(object):
 
         return deepcopy(self._annotations), deepcopy(self._property_version)
 
-    def version(self):
+    async def version(self):
         """
         Returns the current data version of the stream.
 
@@ -433,14 +436,18 @@ class Stream(object):
             The version of the stream.
 
         """
-        return self._btrdb.ep.streamInfo(self._uuid, True, False)[4]
+        return await self._btrdb.ep.streamInfo(self._uuid, True, False)[4]
 
     class _AsyncVersionFuture(object):
         def __init__(self, fut):
             self.fut = fut
 
         def result(self):
-            return self.fut.result()[4]
+            logger.debug(f"fut: {self.fut}")
+            logger.debug(f"await self.fut: {self.fut}")
+            result = self.fut
+            logger.debug(f"result: {result}")
+            return result
 
     def _async_version(self):
         fut = self._btrdb.ep.async_streamInfo(self._uuid, True, False)
@@ -822,7 +829,7 @@ class Stream(object):
 
         return tuple(materialized)
 
-    def nearest(self, time, version, backward=False):
+    async def nearest(self, time, version, backward=False):
         """
         Finds the closest point in the stream to a specified time.
 
@@ -850,7 +857,7 @@ class Stream(object):
 
         """
         try:
-            rp, version = self._btrdb.ep.nearest(
+            rp, version = await self._btrdb.ep.nearest(
                 self._uuid, to_nanoseconds(time), version, backward
             )
         except BTrDBError as exc:
@@ -916,6 +923,7 @@ class StreamSetBase(Sequence):
     def _latest_versions(self):
         versions = {}
         futs = deque()
+        logger.debug(f"latest version Streams: {self._streams[0].version()}")
         for s in self._streams:
             if len(futs) == STREAMSET_API_DEFAULT_PARALLEL_REQUESTS:
                 (s, fut) = futs.pop()
@@ -924,9 +932,10 @@ class StreamSetBase(Sequence):
         while len(futs) != 0:
             (s, fut) = futs.pop()
             versions[s.uuid] = fut.result()
+        logger.debug(f"Versions: {versions}")
         return versions
 
-    def pin_versions(self, versions=None):
+    async def pin_versions(self, versions=None):
         """
         Saves the stream versions that future materializations should use.  If
         no pin is requested then the first materialization will automatically
@@ -952,7 +961,7 @@ class StreamSetBase(Sequence):
                 if not isinstance(key, uuidlib.UUID):
                     raise BTRDBTypeError("version keys must be type UUID")
 
-        self._pinned_versions = self._latest_versions() if not versions else versions
+        self._pinned_versions = await self._latest_versions() if not versions else versions
         return self
 
     def versions(self):
@@ -972,8 +981,9 @@ class StreamSetBase(Sequence):
             A dict containing the stream UUID and version ints as key/values
 
         """
+        latest = self._latest_versions()
         return (
-            self._pinned_versions if self._pinned_versions else self._latest_versions()
+            self._pinned_versions if self._pinned_versions else latest
         )
 
     def count(self):
@@ -1012,7 +1022,7 @@ class StreamSetBase(Sequence):
 
         return count
 
-    def earliest(self):
+    async def earliest(self):
         """
         Returns earliest points of data in streams using available filters.
 
@@ -1030,10 +1040,13 @@ class StreamSetBase(Sequence):
         params = self._params_from_filters()
         start = params.get("start", MINIMUM_TIME)
         versions = self.versions()
+        logger.debug(f"params: {params}\nstart: {start}\nversions: {versions}\n")
+        logger.debug(f"Streams: {self._streams}")
 
         for s in self._streams:
             version = versions.get(s.uuid, 0)
-            point, _ = s.nearest(start, version=version, backward=False)
+            logger.debug(f"HERE version: {version}")
+            point, _ = await s.nearest(start, version=version, backward=False)
             earliest.append(point)
 
         return tuple(earliest)

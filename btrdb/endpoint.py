@@ -24,12 +24,16 @@
 # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+import grpc.aio
 
 from btrdb.grpcinterface import btrdb_pb2
 from btrdb.grpcinterface import btrdb_pb2_grpc
 from btrdb.point import RawPoint
 from btrdb.exceptions import BTrDBError, error_handler, check_proto_stat
 from btrdb.utils.general import unpack_stream_descriptor
+import asyncio
+import logging
+logger = logging.getLogger(__name__)
 
 
 class Endpoint(object):
@@ -46,13 +50,17 @@ class Endpoint(object):
             yield result.values, result.versionMajor
 
     @error_handler
-    def arrowRawValues(self, uu, start, end, version=0):
+    async def arrowRawValues(self, uu, start, end, version=0):
         params = btrdb_pb2.RawValuesParams(
             uuid=uu.bytes, start=start, end=end, versionMajor=version
         )
-        for result in self.stub.ArrowRawValues(params):
-            check_proto_stat(result.stat)
+        result = await self.stub.ArrowRawValues(params)
+        for r in result:
+            check_proto_stat(r.stat)
             yield result.arrowBytes, result.versionMajor
+        # for result in self.stub.ArrowRawValues(params):
+        #     check_proto_stat(result.stat)
+        #     yield result.arrowBytes, result.versionMajor
 
     class AsyncRawValuesFuture(object):
         def __init__(self, fut):
@@ -130,11 +138,13 @@ class Endpoint(object):
             yield result.arrowBytes, result.versionMajor
 
     @error_handler
-    def streamInfo(self, uu, omitDescriptor, omitVersion):
+    async def streamInfo(self, uu, omitDescriptor, omitVersion):
         params = btrdb_pb2.StreamInfoParams(
             uuid=uu.bytes, omitVersion=omitVersion, omitDescriptor=omitDescriptor
         )
-        result = self.stub.StreamInfo(params)
+        logger.debug(f"StreamInfo params: {params}")
+        result = await self.stub.StreamInfo(params)
+        logger.debug(f"Results: {result}")
         desc = result.descriptor
         check_proto_stat(result.stat)
         tagsanns = unpack_stream_descriptor(desc)
@@ -145,18 +155,20 @@ class Endpoint(object):
             self.fut = fut
         @error_handler
         def result(self):
-            result = self.fut.result()
+            result = self.fut
             desc = result.descriptor
             check_proto_stat(result.stat)
             tagsanns = unpack_stream_descriptor(desc)
             return desc.collection, desc.propertyVersion, tagsanns[0], tagsanns[1], result.versionMajor
 
     @error_handler
-    def async_streamInfo(self, uu, omitDescriptor, omitVersion):
+    async def async_streamInfo(self, uu, omitDescriptor, omitVersion):
         params = btrdb_pb2.StreamInfoParams(
             uuid=uu.bytes, omitVersion=omitVersion, omitDescriptor=omitDescriptor
         )
-        fut = self.stub.StreamInfo.future(params)
+        logger.debug(f"Params: {params}")
+        fut = await self.stub.StreamInfo(params)
+        logger.debug(f"fut: {fut}")
         return self.AsyncStreamInfoFuture(fut)
 
     @error_handler
@@ -275,7 +287,7 @@ class Endpoint(object):
             yield msg.collections
 
     @error_handler
-    def lookupStreams(self, collection, isCollectionPrefix, tags, annotations):
+    async def lookupStreams(self, collection, isCollectionPrefix, tags, annotations):
         tagkvlist = []
         for k, v in tags.items():
             if v is None:
@@ -302,16 +314,18 @@ class Endpoint(object):
             tags=tagkvlist,
             annotations=annkvlist,
         )
-        for result in self.stub.LookupStreams(params):
+        async for result in self.stub.LookupStreams(params):
             check_proto_stat(result.stat)
             yield result.results
 
     @error_handler
-    def nearest(self, uu, time, version, backward):
+    async def nearest(self, uu, time, version, backward):
+        logger.debug(f"nearest: {uu}\n{time}\n{version}")
         params = btrdb_pb2.NearestParams(
-            uuid=uu.bytes, time=time, versionMajor=version, backward=backward
+            uuid=uu.bytes, time=time, versionMajor=await version, backward=backward
         )
-        result = self.stub.Nearest(params)
+        result = await self.stub.Nearest(params)
+        logger.debug(f"Nearest results: {result}")
         check_proto_stat(result.stat)
         return result.value, result.versionMajor
     

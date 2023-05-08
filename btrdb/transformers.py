@@ -163,6 +163,7 @@ def to_dataframe(
             df = streamset._data.to_pandas()
     else:
         df = pd.DataFrame(to_dict(streamset, agg=agg))
+        print(df.head())
 
     if not df.empty:
         df = df.set_index("time")
@@ -175,6 +176,7 @@ def to_dataframe(
             ]
             df.columns = pd.MultiIndex.from_tuples(stream_names)
         else:
+            #TODO fix this error with standard streamsets now for value queries.
             df.columns = columns if columns else _stream_names(streamset, name_callable)
 
     return df

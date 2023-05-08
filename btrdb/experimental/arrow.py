@@ -1,5 +1,7 @@
 import logging
+import uuid
 from collections import deque
+import asyncio
 
 import numpy as np
 import pandas as pd
@@ -224,8 +226,34 @@ class ArrowStreamSet(StreamSet):
     def from_streamset(cls, streamset: btrdb.stream.StreamSet):
         return cls(streams=streamset._streams)
 
-    def values(self, start: int, end: int):
-        """Return a numpy array from arrow bytes
+    async def _get_values(self, stream, start: int, end: int, version: int = 0):
+        arr_bytes = await stream._btrdb.ep.arrowRawValues(
+            uu=stream.uuid, start=start, end=end, version=version
+        )
+        bytes_materialized = list(arr_bytes)
+        return _materialize_stream_as_table(bytes_materialized)
+
+    async def _values_async(self, start: int, end: int):
+        """Query and retrieve raw value data from btrdb.
+
+        Parameters
+        ----------
+        start : int, required
+            The beginning time to return data from, in nanoseconds.
+        end : int, required
+            The end time to return data from, in nanoseconds.
+
+        Notes
+        -----
+        Uses asynchronous calls, experimental.
+        """
+        results = await asyncio.gather(
+            *(self._get_values(s.uuid, start, end) for s in self._streams)
+        )
+        return results
+
+    def values(self, start: int, end: int, as_async: bool = True):
+        """Query and retrieve raw value data from btrdb.
 
         Parameters
         ----------
@@ -235,26 +263,36 @@ class ArrowStreamSet(StreamSet):
             The end time to return data from, in nanoseconds.
         """
         logger.debug("In values method for ArrowStreamSet")
-        stream_tables = deque()
-        for s in self._streams:
-            logger.debug(f"For stream - {s.uuid} -  {s.name}")
-            arr_bytes = s._btrdb.ep.arrowRawValues(
-                uu=s.uuid, start=start, end=end, version=0
-            )
-            # exhausting the generator from above
-            bytes_materialized = list(arr_bytes)
+        if not as_async:
+            stream_tables = deque()
+            for s in self._streams:
+                logger.debug(f"For stream - {s.uuid} -  {s.name}")
+                arr_bytes = s._btrdb.ep.arrowRawValues(
+                    uu=s.uuid, start=start, end=end, version=0
+                )
+                # exhausting the generator from above
+                bytes_materialized = list(arr_bytes)
 
-            logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
-            logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
-            # ignore versions for now
-            table = _materialize_stream_as_table(bytes_materialized)
-            stream_tables.append(table)
-        self._data = _coalesce_table_deque(stream_tables)
-        col_names = [
-            s.collection + "/" + s.name + f",{idx}"
-            for idx, s in enumerate(self._streams)
-        ]
-        self._data = self._data.rename_columns(["time", *col_names])
+                logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
+                logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
+                # ignore versions for now
+                table = _materialize_stream_as_table(bytes_materialized)
+                stream_tables.append(table)
+            self._data = _coalesce_table_deque(stream_tables)
+            col_names = [
+                s.collection + "/" + s.name + f",{idx}"
+                for idx, s in enumerate(self._streams)
+            ]
+            self._data = self._data.rename_columns(["time", *col_names])
+        else:
+            tables = asyncio.run(self._values_async(start, end), debug=True)
+            stream_tables = deque(tables)
+            self._data = _coalesce_table_deque(stream_tables)
+            col_names = [
+                s.collection + "/" + s.name + f",{idx}"
+                for idx, s in enumerate(self._streams)
+            ]
+            self._data = self._data.rename_columns(["time", *col_names])
         return self
 
     def windows(
