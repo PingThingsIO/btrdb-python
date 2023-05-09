@@ -7,7 +7,7 @@ import polars as pl
 import pyarrow as pa
 
 import btrdb
-from btrdb.stream import Stream, StreamSet
+from btrdb.stream import Stream, StreamSet, INSERT_BATCH_SIZE
 from btrdb.transformers import _stream_names, _STAT_PROPERTIES
 
 logger = logging.getLogger(__name__)
@@ -24,6 +24,46 @@ class ArrowStream(Stream):
     @classmethod
     def from_stream(cls, stream: btrdb.stream.Stream):
         return cls(uuid=stream.uuid, btrdb=stream._btrdb)
+
+    def arrowInsert(self, data:pa.Table, merge="never"):
+        """
+        Insert new data in the form (time, value) into the series.
+
+        Inserts a list of new (time, value) tuples into the series. The tuples
+        in the list need not be sorted by time. If the arrays are larger than
+        appropriate, this function will automatically chunk the inserts. As a
+        consequence, the insert is not necessarily atomic, but can be used with
+        a very large array.
+
+        Parameters
+        ----------
+        data: pyarrow.Table
+            The arrow table of data to insert, expects only 2 columns, one named
+            "time", and the other named "value"
+        merge: str
+            A string describing the merge policy. Valid policies are:
+              - 'never': the default, no points are merged
+              - 'equal': points are deduplicated if the time and value are equal
+              - 'retain': if two points have the same timestamp, the old one is kept
+              - 'replace': if two points have the same timestamp, the new one is kept
+
+        Returns
+        -------
+        int
+            The version of the stream after inserting new points.
+
+        """
+        tmp_table = data.rename_columns(["time", "value"])
+        tmp_bytes = pa.serialize(tmp_table).to_buffer().to_pybytes()
+        i = 0
+        version = 0
+        while i < len(tmp_bytes):
+            batch = tmp_bytes[i : i + INSERT_BATCH_SIZE]
+            version = self._btrdb.ep.arrowInsertValues(uu=self._uuid, values=batch, policy=merge)
+            i += INSERT_BATCH_SIZE
+        return version
+
+
 
     def values(self, start: int, end: int):
         """Return the raw timeseries data between start and end.
