@@ -54,13 +54,13 @@ class ArrowStream(Stream):
 
         """
         tmp_table = data.rename_columns(["time", "value"])
-        tmp_bytes = pa.serialize(tmp_table).to_buffer().to_pybytes()
-        i = 0
+        schema = tmp_table.schema
+        table_batches = tmp_table.to_batches(max_chunksize=INSERT_BATCH_SIZE)
+        table_batches = [pa.RecordBatch.from_arrays(b.columns, schema=schema) for b in table_batches]
         version = 0
-        while i < len(tmp_bytes):
-            batch = tmp_bytes[i : i + INSERT_BATCH_SIZE]
-            version = self._btrdb.ep.arrowInsertValues(uu=self._uuid, values=batch, policy=merge)
-            i += INSERT_BATCH_SIZE
+        for batch in table_batches:
+            batch_bytes = batch.serialize().to_pybytes()
+            version = self._btrdb.ep.arrowInsertValues(uu=self.uuid, values=batch_bytes, policy=merge)
         return version
 
 
