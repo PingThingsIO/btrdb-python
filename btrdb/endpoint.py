@@ -25,6 +25,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import grpc.aio
+import uuid
 
 from btrdb.grpcinterface import btrdb_pb2
 from btrdb.grpcinterface import btrdb_pb2_grpc
@@ -64,6 +65,24 @@ class Endpoint(object):
         # for result in self.stub.ArrowRawValues(params):
         #     check_proto_stat(result.stat)
         #     yield result.arrowBytes, result.versionMajor
+
+    @error_handler
+    def arrowInsertValues(self, uu:uuid.UUID, values:bytearray, policy:str):
+        policy_map = {
+            "never": btrdb_pb2.MergePolicy.NEVER,
+            "equal": btrdb_pb2.MergePolicy.EQUAL,
+            "retain": btrdb_pb2.MergePolicy.RETAIN,
+            "replace": btrdb_pb2.MergePolicy.REPLACE,
+        }
+        params = btrdb_pb2.ArrowInsertParams(
+            uuid=uu.bytes,
+            sync=False,
+            arrowBytes=values,
+            merge_policy=policy_map[policy],
+        )
+        result = self.stub.ArrowInsert(params)
+        check_proto_stat(result.stat)
+        return result.versionMajor
 
     class AsyncRawValuesFuture(object):
         def __init__(self, fut):

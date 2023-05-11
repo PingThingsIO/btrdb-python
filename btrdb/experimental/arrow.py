@@ -1,3 +1,4 @@
+import io
 import logging
 import uuid
 from collections import deque
@@ -7,9 +8,10 @@ import numpy as np
 import pandas as pd
 import polars as pl
 import pyarrow as pa
+from pyarrow.feather import write_feather
 
 import btrdb
-from btrdb.stream import Stream, StreamSet
+from btrdb.stream import Stream, StreamSet, INSERT_BATCH_SIZE
 from btrdb.transformers import _stream_names, _STAT_PROPERTIES
 
 logger = logging.getLogger(__name__)
@@ -27,6 +29,50 @@ class ArrowStream(Stream):
     def from_stream(cls, stream: btrdb.stream.Stream):
         return cls(uuid=stream.uuid, btrdb=stream._btrdb)
 
+    def arrowInsert(self, data:pa.Table, merge="never"):
+        """
+        Insert new data in the form (time, value) into the series.
+
+        Inserts a list of new (time, value) tuples into the series. The tuples
+        in the list need not be sorted by time. If the arrays are larger than
+        appropriate, this function will automatically chunk the inserts. As a
+        consequence, the insert is not necessarily atomic, but can be used with
+        a very large array.
+
+        Parameters
+        ----------
+        data: pyarrow.Table
+            The arrow table of data to insert, expects only 2 columns, one named
+            "time", and the other named "value"
+        merge: str
+            A string describing the merge policy. Valid policies are:
+              - 'never': the default, no points are merged
+              - 'equal': points are deduplicated if the time and value are equal
+              - 'retain': if two points have the same timestamp, the old one is kept
+              - 'replace': if two points have the same timestamp, the new one is kept
+
+        Returns
+        -------
+        int
+            The version of the stream after inserting new points.
+
+        """
+        chunksize = INSERT_BATCH_SIZE
+        tmp_table = data.rename_columns(["time", "value"])
+        logger.debug(f"tmp_table schema: {tmp_table.schema}")
+        schema = tmp_table.schema
+        table_batches = tmp_table.to_batches(max_chunksize=chunksize)
+        logger.debug(f"Num batches: {len(table_batches)}")
+        table_batches = [pa.RecordBatch.from_arrays(b.columns, schema=schema) for b in table_batches]
+        version = []
+        for b in table_batches:
+            logger.debug(f"Batch: {b}")
+            feather_bytes = _batch_to_feather_bytes(batch=b)
+            version.append(self._btrdb.ep.arrowInsertValues(uu=self.uuid, values=feather_bytes, policy=merge))
+        return max(version)
+
+
+
     def values(self, start: int, end: int):
         """Return the raw timeseries data between start and end.
 
@@ -39,7 +85,7 @@ class ArrowStream(Stream):
 
         Returns
         -------
-        btrdb.experimenal.arrow.ArrowStream
+        btrdb.experimental.arrow.ArrowStream
             The stream object with the populated _data member.
         """
         logger.debug(f"For stream - {self.uuid} -  {self.name}")
@@ -202,6 +248,12 @@ def _materialize_stream_as_table(arrow_bytes):
     logger.debug(f"table list: {table_list}")
     table = pa.concat_tables(table_list)
     return table
+
+
+def _batch_to_feather_bytes(batch:pa.RecordBatch)->bytes:
+    my_bytes = io.BytesIO()
+    write_feather(pa.Table.from_batches(batches=[batch]), dest=my_bytes)
+    return my_bytes.getvalue()
 
 
 def _coalesce_table_deque(tables: deque):

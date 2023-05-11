@@ -197,16 +197,23 @@ enum MergePolicy {
   RETAIN = 2;	// When timestamps are equal, keep old value
   REPLACE = 3;	// When timestamps are equal, keep new value
 }
+message RoundSpec {
+  oneof spec {
+    int32 bits = 2;
+  }
+}
 message InsertParams {
   bytes uuid = 1;
   bool sync = 2;
   MergePolicy merge_policy = 4;
+  RoundSpec rounding=5;
   repeated RawPoint values = 3;
 }
 message ArrowInsertParams {
   bytes uuid = 1;
   bool sync = 2;
   MergePolicy merge_policy = 3;
+  RoundSpec rounding = 4;
   bytes arrowBytes = 5;
 }
 message InsertResponse {
