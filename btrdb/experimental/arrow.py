@@ -1,3 +1,4 @@
+import io
 import logging
 from collections import deque
 
@@ -5,6 +6,7 @@ import numpy as np
 import pandas as pd
 import polars as pl
 import pyarrow as pa
+from pyarrow.feather import write_feather
 
 import btrdb
 from btrdb.stream import Stream, StreamSet, INSERT_BATCH_SIZE
@@ -54,13 +56,23 @@ class ArrowStream(Stream):
 
         """
         tmp_table = data.rename_columns(["time", "value"])
+        logger.debug(f"tmp_table schema: {tmp_table.schema}")
+        feather_bytes = io.BytesIO()
+        write_feather(df=tmp_table, dest=feather_bytes)
+        size_bytes = feather_bytes.getbuffer().nbytes
+        logger.debug(f"bytes size: {size_bytes}")
         schema = tmp_table.schema
-        table_batches = tmp_table.to_batches(max_chunksize=INSERT_BATCH_SIZE)
+        table_batches = tmp_table.to_batches()
+        logger.debug(f"Num batches: {len(table_batches)}")
         table_batches = [pa.RecordBatch.from_arrays(b.columns, schema=schema) for b in table_batches]
-        version = 0
-        for batch in table_batches:
-            batch_bytes = batch.serialize().to_pybytes()
-            version = self._btrdb.ep.arrowInsertValues(uu=self.uuid, values=batch_bytes, policy=merge)
+        version=-1
+        # for b in table_batches:
+        #     logger.debug(f"Batch: {b}")
+        #     # print(b.serialize().to_pybytes())
+        #     version = self._btrdb.ep.arrowInsertValues(uu=self.uuid, values=b.serialize().to_pybytes(), policy=merge)
+        # while size_bytes > 0:
+        version = self._btrdb.ep.arrowInsertValues(uu=self.uuid, values=feather_bytes.getvalue(), policy=merge)
+            # size_bytes = size_bytes - INSERT_BATCH_SIZE
         return version
 
 
@@ -77,7 +89,7 @@ class ArrowStream(Stream):
 
         Returns
         -------
-        btrdb.experimenal.arrow.ArrowStream
+        btrdb.experimental.arrow.ArrowStream
             The stream object with the populated _data member.
         """
         logger.debug(f"For stream - {self.uuid} -  {self.name}")
