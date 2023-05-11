@@ -55,25 +55,19 @@ class ArrowStream(Stream):
             The version of the stream after inserting new points.
 
         """
+        chunksize = INSERT_BATCH_SIZE
         tmp_table = data.rename_columns(["time", "value"])
         logger.debug(f"tmp_table schema: {tmp_table.schema}")
-        feather_bytes = io.BytesIO()
-        write_feather(df=tmp_table, dest=feather_bytes)
-        size_bytes = feather_bytes.getbuffer().nbytes
-        logger.debug(f"bytes size: {size_bytes}")
         schema = tmp_table.schema
-        table_batches = tmp_table.to_batches()
+        table_batches = tmp_table.to_batches(max_chunksize=chunksize)
         logger.debug(f"Num batches: {len(table_batches)}")
         table_batches = [pa.RecordBatch.from_arrays(b.columns, schema=schema) for b in table_batches]
-        version=-1
-        # for b in table_batches:
-        #     logger.debug(f"Batch: {b}")
-        #     # print(b.serialize().to_pybytes())
-        #     version = self._btrdb.ep.arrowInsertValues(uu=self.uuid, values=b.serialize().to_pybytes(), policy=merge)
-        # while size_bytes > 0:
-        version = self._btrdb.ep.arrowInsertValues(uu=self.uuid, values=feather_bytes.getvalue(), policy=merge)
-            # size_bytes = size_bytes - INSERT_BATCH_SIZE
-        return version
+        version = []
+        for b in table_batches:
+            logger.debug(f"Batch: {b}")
+            feather_bytes = _batch_to_feather_bytes(batch=b)
+            version.append(self._btrdb.ep.arrowInsertValues(uu=self.uuid, values=feather_bytes, policy=merge))
+        return max(version)
 
 
 
@@ -252,6 +246,12 @@ def _materialize_stream_as_table(arrow_bytes):
     logger.debug(f"table list: {table_list}")
     table = pa.concat_tables(table_list)
     return table
+
+
+def _batch_to_feather_bytes(batch:pa.RecordBatch)->bytes:
+    my_bytes = io.BytesIO()
+    write_feather(pa.Table.from_batches(batches=[batch]), dest=my_bytes)
+    return my_bytes.getvalue()
 
 
 def _coalesce_table_deque(tables: deque):
