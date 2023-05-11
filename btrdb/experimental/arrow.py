@@ -29,7 +29,7 @@ class ArrowStream(Stream):
     def from_stream(cls, stream: btrdb.stream.Stream):
         return cls(uuid=stream.uuid, btrdb=stream._btrdb)
 
-    def arrowInsert(self, data:pa.Table, merge="never"):
+    async def arrowInsert(self, data:pa.Table, merge="never"):
         """
         Insert new data in the form (time, value) into the series.
 
@@ -64,16 +64,17 @@ class ArrowStream(Stream):
         table_batches = tmp_table.to_batches(max_chunksize=chunksize)
         logger.debug(f"Num batches: {len(table_batches)}")
         table_batches = [pa.RecordBatch.from_arrays(b.columns, schema=schema) for b in table_batches]
-        version = []
-        for b in table_batches:
-            logger.debug(f"Batch: {b}")
-            feather_bytes = _batch_to_feather_bytes(batch=b)
-            version.append(self._btrdb.ep.arrowInsertValues(uu=self.uuid, values=feather_bytes, policy=merge))
-        return max(version)
+        feather_bytes = await asyncio.gather(
+            *(_batch_to_feather_bytes(b) for b in table_batches)
+        )
+        versions = await asyncio.gather(
+            *(self._btrdb.ep.arrowInsertValues(uu=self.uuid, values=b, policy=merge) for b in feather_bytes)
+        )
+        return max(versions)
 
 
 
-    def values(self, start: int, end: int):
+    async def values(self, start: int, end: int):
         """Return the raw timeseries data between start and end.
 
         Parameters
@@ -88,10 +89,12 @@ class ArrowStream(Stream):
         btrdb.experimental.arrow.ArrowStream
             The stream object with the populated _data member.
         """
-        logger.debug(f"For stream - {self.uuid} -  {self.name}")
-        arr_bytes = self._btrdb.ep.arrowRawValues(
+        # logger.debug(f"For stream - {self.uuid} -  {self.name}")
+        arr_bytes = []
+        async for my_bytes in self._btrdb.ep.arrowRawValues(
             uu=self.uuid, start=start, end=end, version=0
-        )
+        ):
+            arr_bytes.append(my_bytes)
         # exhausting the generator from above
         bytes_materialized = list(arr_bytes)
 
@@ -99,9 +102,6 @@ class ArrowStream(Stream):
         logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
         # ignore versions for now
         self._data = _materialize_stream_as_table(bytes_materialized)
-        self._data = self._data.rename_columns(
-            ["time", self.collection + "/" + self.name]
-        )
         return self
 
     def windows(
@@ -250,7 +250,7 @@ def _materialize_stream_as_table(arrow_bytes):
     return table
 
 
-def _batch_to_feather_bytes(batch:pa.RecordBatch)->bytes:
+async def _batch_to_feather_bytes(batch:pa.RecordBatch)->bytes:
     my_bytes = io.BytesIO()
     write_feather(pa.Table.from_batches(batches=[batch]), dest=my_bytes)
     return my_bytes.getvalue()

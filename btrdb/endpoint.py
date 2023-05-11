@@ -67,7 +67,7 @@ class Endpoint(object):
         #     yield result.arrowBytes, result.versionMajor
 
     @error_handler
-    def arrowInsertValues(self, uu:uuid.UUID, values:bytearray, policy:str):
+    async def arrowInsertValues(self, uu:uuid.UUID, values:bytearray, policy:str):
         policy_map = {
             "never": btrdb_pb2.MergePolicy.NEVER,
             "equal": btrdb_pb2.MergePolicy.EQUAL,
@@ -80,7 +80,7 @@ class Endpoint(object):
             arrowBytes=values,
             merge_policy=policy_map[policy],
         )
-        result = self.stub.ArrowInsert(params)
+        result = await self.stub.ArrowInsert(params)
         check_proto_stat(result.stat)
         return result.versionMajor
 
