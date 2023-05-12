@@ -27,7 +27,7 @@ class ArrowStream(Stream):
     def from_stream(cls, stream: btrdb.stream.Stream):
         return cls(uuid=stream.uuid, btrdb=stream._btrdb)
 
-    def arrowInsert(self, data:pa.Table, merge="never", _chunksize:int=5000):
+    def arrowInsert(self, data:pa.Table, merge="never"):
         """
         Insert new data in the form (time, value) into the series.
 
@@ -55,29 +55,28 @@ class ArrowStream(Stream):
             The version of the stream after inserting new points.
 
         """
-        chunksize = _chunksize
+        chunksize = INSERT_BATCH_SIZE
         tmp_table = data.rename_columns(["time", "value"])
         logger.debug(f"tmp_table schema: {tmp_table.schema}")
-        schema = tmp_table.schema
-        num_rows = len(data)
+        num_rows = tmp_table.num_rows
 
         # Calculate the number of batches based on the chunk size
-        num_batches = (num_rows + chunksize - 1) // chunksize
+        num_batches = num_rows // chunksize
+        if num_rows % chunksize != 0 or num_batches == 0:
+            num_batches = num_batches + 1
 
-        batches = []
+        table_slices = []
 
         for i in range(num_batches):
             start_idx = i * chunksize
-            end_idx = min((i + 1) * chunksize, num_rows)
-            batch = data.slice(start_idx, end_idx)
-            batches.append(batch)
+            t = tmp_table.slice(offset=start_idx, length=chunksize)
+            table_slices.append(t)
 
         # Process the batches as needed
         version = []
-        for b in batches:
-            # record_batch = b.to_batches()
-            logger.debug(f"Batch: {b}")
-            feather_bytes = _batch_to_feather_bytes(batch=b)
+        for tab in table_slices:
+            logger.debug(f"Table Slice: {tab}")
+            feather_bytes = _table_slice_to_feather_bytes(table_slice=tab)
             version.append(self._btrdb.ep.arrowInsertValues(uu=self.uuid, values=feather_bytes, policy=merge))
         return max(version)
 
@@ -260,9 +259,9 @@ def _materialize_stream_as_table(arrow_bytes):
     return table
 
 
-def _batch_to_feather_bytes(batch:pa.Table)->bytes:
+def _table_slice_to_feather_bytes(table_slice:pa.Table)->bytes:
     my_bytes = io.BytesIO()
-    write_feather(batch, dest=my_bytes)
+    write_feather(table_slice, dest=my_bytes)
     return my_bytes.getvalue()
 
 
