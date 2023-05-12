@@ -59,11 +59,23 @@ class ArrowStream(Stream):
         tmp_table = data.rename_columns(["time", "value"])
         logger.debug(f"tmp_table schema: {tmp_table.schema}")
         schema = tmp_table.schema
-        table_batches = tmp_table.to_batches(max_chunksize=chunksize)
-        logger.debug(f"Num batches: {len(table_batches)}")
-        table_batches = [pa.RecordBatch.from_arrays(b.columns, schema=schema) for b in table_batches]
+        num_rows = len(data)
+
+        # Calculate the number of batches based on the chunk size
+        num_batches = (num_rows + chunksize - 1) // chunksize
+
+        batches = []
+
+        for i in range(num_batches):
+            start_idx = i * chunksize
+            end_idx = min((i + 1) * chunksize, num_rows)
+            batch = data.slice(start_idx, end_idx)
+            batches.append(batch)
+
+        # Process the batches as needed
         version = []
-        for b in table_batches:
+        for b in batches:
+            # record_batch = b.to_batches()
             logger.debug(f"Batch: {b}")
             feather_bytes = _batch_to_feather_bytes(batch=b)
             version.append(self._btrdb.ep.arrowInsertValues(uu=self.uuid, values=feather_bytes, policy=merge))
@@ -248,9 +260,9 @@ def _materialize_stream_as_table(arrow_bytes):
     return table
 
 
-def _batch_to_feather_bytes(batch:pa.RecordBatch)->bytes:
+def _batch_to_feather_bytes(batch:pa.Table)->bytes:
     my_bytes = io.BytesIO()
-    write_feather(pa.Table.from_batches(batches=[batch]), dest=my_bytes)
+    write_feather(batch, dest=my_bytes)
     return my_bytes.getvalue()
 
 
