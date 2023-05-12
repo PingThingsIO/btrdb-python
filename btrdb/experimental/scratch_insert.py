@@ -4,6 +4,7 @@ from pyarrow.feather import write_feather
 import io
 import btrdb
 from btrdb.experimental.arrow import ArrowStream
+import time
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -17,28 +18,28 @@ streams = conn.streams_in_collection("justin_test")
 print(streams[0].earliest())
 print(streams[0].latest())
 start = streams[0].earliest()[0].time
-# end = streams[0].latest()[0].time
-end = btrdb.utils.timez.ns_delta(seconds=2) + start
+end = streams[0].latest()[0].time
+# end = btrdb.utils.timez.ns_delta(seconds=2) + start
 
 prev_arr_stream = ArrowStream.from_stream(streams[0])
 print(prev_arr_stream)
 prev_arr_stream = prev_arr_stream.values(start, end)
 
-bytes_f = io.BytesIO()
-write_feather(df=prev_arr_stream._data.rename_columns(["time", "value"]), dest=bytes_f)
-print(bytes_f)
-buf = pa.BufferReader(bytes_f.getvalue())
-print(buf.__dir__())
-print(pa.feather.read_table(buf))
-
-print(pa.ipc.open_file(buf))
-with pa.ipc.open_file(buf) as reader:
-    print(reader.schema)
-    print(f"num batches: {reader.num_record_batches}")
-    b = reader.get_batch(0)
-    print(b)
-    print(b.serialize().to_pybytes())
-
+# bytes_f = io.BytesIO()
+# write_feather(df=prev_arr_stream._data.rename_columns(["time", "value"]), dest=bytes_f)
+# print(bytes_f)
+# buf = pa.BufferReader(bytes_f.getvalue())
+# print(buf.__dir__())
+# print(pa.feather.read_table(buf))
+#
+# print(pa.ipc.open_file(buf))
+# with pa.ipc.open_file(buf) as reader:
+#     print(reader.schema)
+#     print(f"num batches: {reader.num_record_batches}")
+#     b = reader.get_batch(0)
+#     print(b)
+#     print(b.serialize().to_pybytes())
+#
 # print(prev_arr_stream.to_polars())
 # # print(pa.serialize(prev_arr_stream._data).to_buffer().to_pybytes())
 #

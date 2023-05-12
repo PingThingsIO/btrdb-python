@@ -27,7 +27,7 @@ class ArrowStream(Stream):
     def from_stream(cls, stream: btrdb.stream.Stream):
         return cls(uuid=stream.uuid, btrdb=stream._btrdb)
 
-    def arrowInsert(self, data:pa.Table, merge="never"):
+    def arrowInsert(self, data:pa.Table, merge="never", _chunksize:int=5000):
         """
         Insert new data in the form (time, value) into the series.
 
@@ -55,7 +55,7 @@ class ArrowStream(Stream):
             The version of the stream after inserting new points.
 
         """
-        chunksize = INSERT_BATCH_SIZE
+        chunksize = _chunksize
         tmp_table = data.rename_columns(["time", "value"])
         logger.debug(f"tmp_table schema: {tmp_table.schema}")
         schema = tmp_table.schema
