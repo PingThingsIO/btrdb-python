@@ -1,6 +1,7 @@
 import io
 import logging
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pandas as pd
@@ -15,6 +16,8 @@ from btrdb.transformers import _stream_names, _STAT_PROPERTIES
 logger = logging.getLogger(__name__)
 # logging.basicConfig(level=logging.DEBUG)
 
+STREAMSET_API_DEFAULT_PARALLEL_REQUESTS = 64
+
 
 class ArrowStream(Stream):
     """Arrow-accelerated queries where applicable for a single stream."""
@@ -27,7 +30,7 @@ class ArrowStream(Stream):
     def from_stream(cls, stream: btrdb.stream.Stream):
         return cls(uuid=stream.uuid, btrdb=stream._btrdb)
 
-    def arrowInsert(self, data:pa.Table, merge="never"):
+    def arrowInsert(self, data: pa.Table, merge="never"):
         """
         Insert new data in the form (time, value) into the series.
 
@@ -77,10 +80,28 @@ class ArrowStream(Stream):
         for tab in table_slices:
             logger.debug(f"Table Slice: {tab}")
             feather_bytes = _table_slice_to_feather_bytes(table_slice=tab)
-            version.append(self._btrdb.ep.arrowInsertValues(uu=self.uuid, values=feather_bytes, policy=merge))
+            version.append(
+                self._btrdb.ep.arrowInsertValues(
+                    uu=self.uuid, values=feather_bytes, policy=merge
+                )
+            )
         return max(version)
 
+    class _AsyncArrowValuesFuture(object):
+        def __init__(self, fut, version, uuid):
+            self.version = version
+            self.fut = fut
+            self.uuid = uuid
 
+        def result(self) -> pa.Table:
+            arr_bytes = list(self.fut.result())
+            tab = _materialize_stream_as_table(arr_bytes)
+            tab = tab.rename_columns(["time", str(self.uuid)])
+            return tab
+
+    def _async_values(self, start, end, version=0):
+        fut = self._btrdb.ep.async_ArrowRawValues(self._uuid, start, end, version)
+        return self._AsyncArrowValuesFuture(fut, version, self.uuid)
 
     def values(self, start: int, end: int):
         """Return the raw timeseries data between start and end.
@@ -109,7 +130,7 @@ class ArrowStream(Stream):
         # ignore versions for now
         self._data = _materialize_stream_as_table(bytes_materialized)
         self._data = self._data.rename_columns(
-            ["time", self.collection + "/" + self.name]
+            ["time", str(self.uuid)]
         )
         return self
 
@@ -259,7 +280,7 @@ def _materialize_stream_as_table(arrow_bytes):
     return table
 
 
-def _table_slice_to_feather_bytes(table_slice:pa.Table)->bytes:
+def _table_slice_to_feather_bytes(table_slice: pa.Table) -> bytes:
     my_bytes = io.BytesIO()
     write_feather(table_slice, dest=my_bytes)
     return my_bytes.getvalue()
@@ -285,7 +306,8 @@ class ArrowStreamSet(StreamSet):
 
     @classmethod
     def from_streamset(cls, streamset: btrdb.stream.StreamSet):
-        return cls(streams=streamset._streams)
+        streams = [ArrowStream.from_stream(s) for s in streamset._streams]
+        return cls(streams=streams)
 
     def values(self, start: int, end: int):
         """Return a numpy array from arrow bytes
@@ -299,25 +321,16 @@ class ArrowStreamSet(StreamSet):
         """
         logger.debug("In values method for ArrowStreamSet")
         stream_tables = deque()
+        futs = deque()
         for s in self._streams:
-            logger.debug(f"For stream - {s.uuid} -  {s.name}")
-            arr_bytes = s._btrdb.ep.arrowRawValues(
-                uu=s.uuid, start=start, end=end, version=0
-            )
-            # exhausting the generator from above
-            bytes_materialized = list(arr_bytes)
-
-            logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
-            logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
-            # ignore versions for now
-            table = _materialize_stream_as_table(bytes_materialized)
-            stream_tables.append(table)
+            if len(futs) == STREAMSET_API_DEFAULT_PARALLEL_REQUESTS:
+                stream_tables.append(futs.pop().result())
+            futs.appendleft(s._async_values(start=start, end=end))
+            logger.debug(f"Futs deque: {futs}")
+        logger.debug(f'futs[0]: {futs[0].fut.fut}')
+        while len(futs) != 0:
+            stream_tables.append(futs.pop().result())
         self._data = _coalesce_table_deque(stream_tables)
-        col_names = [
-            s.collection + "/" + s.name + f",{idx}"
-            for idx, s in enumerate(self._streams)
-        ]
-        self._data = self._data.rename_columns(["time", *col_names])
         return self
 
     def windows(

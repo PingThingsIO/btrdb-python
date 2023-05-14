@@ -24,7 +24,10 @@
 # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+import logging
 import uuid
+
+import grpc
 
 from btrdb.grpcinterface import btrdb_pb2
 from btrdb.grpcinterface import btrdb_pb2_grpc
@@ -56,7 +59,7 @@ class Endpoint(object):
             yield result.arrowBytes, result.versionMajor
 
     @error_handler
-    def arrowInsertValues(self, uu:uuid.UUID, values:bytearray, policy:str):
+    def arrowInsertValues(self, uu: uuid.UUID, values: bytearray, policy: str):
         policy_map = {
             "never": btrdb_pb2.MergePolicy.NEVER,
             "equal": btrdb_pb2.MergePolicy.EQUAL,
@@ -76,6 +79,7 @@ class Endpoint(object):
     class AsyncRawValuesFuture(object):
         def __init__(self, fut):
             self.fut = fut
+
         @error_handler
         def result(self):
             for result in self.fut:
@@ -89,11 +93,25 @@ class Endpoint(object):
         )
         return self.AsyncRawValuesFuture(self.stub.RawValues(params))
 
+    class AsyncArrowRawValuesFuture(object):
+        """Wrapper object for stub future multicallable."""
+
+        def __init__(self, fut: grpc.Future):
+            self.fut = fut
+
+        @error_handler
+        def result(self):
+            for res in self.fut:
+                logging.debug(res)
+                check_proto_stat(res.stat)
+                yield res.arrowBytes, res.versionMajor
+
     def async_ArrowRawValues(self, uu, start, end, version=0):
         params = btrdb_pb2.RawValuesParams(
             uuid=uu.bytes, start=start, end=end, versionMajor=version
         )
-        return self.AsyncRawValuesFuture(self.stub.ArrowRawValues(params))
+        fut = self.stub.ArrowRawValues(params)
+        return self.AsyncArrowRawValuesFuture(fut)
 
     @error_handler
     def alignedWindows(self, uu, start, end, pointwidth, version=0):
@@ -121,6 +139,29 @@ class Endpoint(object):
             check_proto_stat(result.stat)
             yield result.arrowBytes, result.versionMajor
 
+    class AsyncArrowAlignedWindowsFuture(object):
+        def __init__(self, fut:grpc.Future):
+            self.fut = fut
+
+        @error_handler
+        def result(self):
+            for res in self.fut.result():
+                check_proto_stat(res.stat)
+                yield res.arrowBytes, res.versionMajor
+
+    @error_handler
+    def async_ArrowAlignedWindows(self, uu, start, end, pointwidth, version=0):
+        params = btrdb_pb2.AlignedWindowsParams(
+            uuid=uu.bytes,
+            start=start,
+            end=end,
+            versionMajor=version,
+            pointWidth=int(pointwidth),
+        )
+        fut = self.stub.ArrowAlignedWindows(params)
+        return self.AsyncArrowAlignedWindowsFuture(fut)
+
+
     @error_handler
     def windows(self, uu, start, end, width, depth, version=0):
         params = btrdb_pb2.WindowsParams(
@@ -134,6 +175,7 @@ class Endpoint(object):
         for result in self.stub.Windows(params):
             check_proto_stat(result.stat)
             yield result.values, result.versionMajor
+
     @error_handler
     def arrowWindows(self, uu, start, end, width, depth, version=0):
         params = btrdb_pb2.WindowsParams(
@@ -148,6 +190,30 @@ class Endpoint(object):
             check_proto_stat(result.stat)
             yield result.arrowBytes, result.versionMajor
 
+    class AsyncArrowWindowsFuture(object):
+        def __init__(self, fut:grpc.Future):
+            self.fut = fut
+
+        @error_handler
+        def result(self):
+            for res in self.fut.result():
+                check_proto_stat(res.stat)
+                yield res.arrowBytes, res.versionMajor
+
+    @error_handler
+    @error_handler
+    def async_ArrowWindows(self, uu, start, end, width, depth, version=0):
+        params = btrdb_pb2.WindowsParams(
+            uuid=uu.bytes,
+            start=start,
+            end=end,
+            versionMajor=version,
+            width=width,
+            depth=depth,
+        )
+        fut = self.stub.ArrowWindows(params)
+        return self.AsyncArrowAlignedWindowsFuture(fut)
+
     @error_handler
     def streamInfo(self, uu, omitDescriptor, omitVersion):
         params = btrdb_pb2.StreamInfoParams(
@@ -157,18 +223,31 @@ class Endpoint(object):
         desc = result.descriptor
         check_proto_stat(result.stat)
         tagsanns = unpack_stream_descriptor(desc)
-        return desc.collection, desc.propertyVersion, tagsanns[0], tagsanns[1], result.versionMajor
+        return (
+            desc.collection,
+            desc.propertyVersion,
+            tagsanns[0],
+            tagsanns[1],
+            result.versionMajor,
+        )
 
     class AsyncStreamInfoFuture(object):
         def __init__(self, fut):
             self.fut = fut
+
         @error_handler
         def result(self):
             result = self.fut.result()
             desc = result.descriptor
             check_proto_stat(result.stat)
             tagsanns = unpack_stream_descriptor(desc)
-            return desc.collection, desc.propertyVersion, tagsanns[0], tagsanns[1], result.versionMajor
+            return (
+                desc.collection,
+                desc.propertyVersion,
+                tagsanns[0],
+                tagsanns[1],
+                result.versionMajor,
+            )
 
     @error_handler
     def async_streamInfo(self, uu, omitDescriptor, omitVersion):
@@ -187,6 +266,7 @@ class Endpoint(object):
     class AsyncObliterateFuture(object):
         def __init__(self, fut):
             self.fut = fut
+
         @error_handler
         def result(self):
             result = self.fut.result()
@@ -244,11 +324,11 @@ class Endpoint(object):
     def create(self, uu, collection, tags, annotations):
         tagkvlist = []
         for k, v in tags.items():
-            kv = btrdb_pb2.KeyOptValue(key = k, val = btrdb_pb2.OptValue(value=v))
+            kv = btrdb_pb2.KeyOptValue(key=k, val=btrdb_pb2.OptValue(value=v))
             tagkvlist.append(kv)
         annkvlist = []
         for k, v in annotations.items():
-            kv = btrdb_pb2.KeyOptValue(key = k, val = btrdb_pb2.OptValue(value=v))
+            kv = btrdb_pb2.KeyOptValue(key=k, val=btrdb_pb2.OptValue(value=v))
             annkvlist.append(kv)
         params = btrdb_pb2.CreateParams(
             uuid=uu.bytes, collection=collection, tags=tagkvlist, annotations=annkvlist
@@ -259,6 +339,7 @@ class Endpoint(object):
     class AsyncCreateFuture(object):
         def __init__(self, fut):
             self.fut = fut
+
         @error_handler
         def result(self):
             result = self.fut.result()
@@ -268,11 +349,11 @@ class Endpoint(object):
     def async_create(self, uu, collection, tags, annotations):
         tagkvlist = []
         for k, v in tags.items():
-            kv = btrdb_pb2.KeyOptValue(key = k, val = btrdb_pb2.OptValue(value=v))
+            kv = btrdb_pb2.KeyOptValue(key=k, val=btrdb_pb2.OptValue(value=v))
             tagkvlist.append(kv)
         annkvlist = []
         for k, v in annotations.items():
-            kv = btrdb_pb2.KeyOptValue(key = k, val = btrdb_pb2.OptValue(value=v))
+            kv = btrdb_pb2.KeyOptValue(key=k, val=btrdb_pb2.OptValue(value=v))
             annkvlist.append(kv)
         params = btrdb_pb2.CreateParams(
             uuid=uu.bytes, collection=collection, tags=tagkvlist, annotations=annkvlist
@@ -333,7 +414,7 @@ class Endpoint(object):
         result = self.stub.Nearest(params)
         check_proto_stat(result.stat)
         return result.value, result.versionMajor
-    
+
     @error_handler
     def changes(self, uu, fromVersion, toVersion, resolution):
         params = btrdb_pb2.ChangesParams(
@@ -368,6 +449,7 @@ class Endpoint(object):
     class AsyncInsertFuture(object):
         def __init__(self, fut):
             self.fut = fut
+
         @error_handler
         def result(self):
             result = self.fut.result()
@@ -402,6 +484,7 @@ class Endpoint(object):
     class AsyncDeleteRangeFuture(object):
         def __init__(self, fut):
             self.fut = fut
+
         @error_handler
         def result(self):
             result = self.fut.result()
@@ -437,6 +520,7 @@ class Endpoint(object):
     class AsyncFlushFuture(object):
         def __init__(self, fut):
             self.fut = fut
+
         @error_handler
         def result(self):
             result = self.fut.result()
@@ -456,18 +540,24 @@ class Endpoint(object):
         return result.tags, result.annotations
 
     @error_handler
-    def generateCSV(self, queryType, start, end, width, depth, includeVersions, *streams):
-        protoStreams = [btrdb_pb2.StreamCSVConfig(version = stream[0],
-                        label = stream[1],
-                        uuid = stream[2].bytes)
-                        for stream in streams]
-        params = btrdb_pb2.GenerateCSVParams(queryType = queryType.to_proto(),
-                                            startTime = start,
-                                            endTime = end,
-                                            windowSize = width,
-                                            depth = depth,
-                                            includeVersions = includeVersions,
-                                            streams = protoStreams)
+    def generateCSV(
+        self, queryType, start, end, width, depth, includeVersions, *streams
+    ):
+        protoStreams = [
+            btrdb_pb2.StreamCSVConfig(
+                version=stream[0], label=stream[1], uuid=stream[2].bytes
+            )
+            for stream in streams
+        ]
+        params = btrdb_pb2.GenerateCSVParams(
+            queryType=queryType.to_proto(),
+            startTime=start,
+            endTime=end,
+            windowSize=width,
+            depth=depth,
+            includeVersions=includeVersions,
+            streams=protoStreams,
+        )
         for result in self.stub.GenerateCSV(params):
             check_proto_stat(result.stat)
             yield result.row
@@ -482,6 +572,7 @@ class Endpoint(object):
     class AsyncSQLQueryFuture(object):
         def __init__(self, fut):
             self.fut = fut
+
         @error_handler
         def result(self):
             for page in self.fut:
