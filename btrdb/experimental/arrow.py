@@ -197,6 +197,29 @@ class ArrowStream(Stream):
         self._data = self._data.rename_columns(["time", *stream_names])
         return self
 
+    class _AsyncArrowAlignedWindowsFuture(object):
+        def __init__(self, fut, version, uuid):
+            self.version = version
+            self.fut = fut
+            self.uuid = uuid
+
+        def result(self) -> pa.Table:
+            arr_bytes = list(self.fut.result())
+            tab = _materialize_stream_as_table(arr_bytes)
+            stream_names = [
+                "/".join([str(self.uuid), prop]) for prop in _STAT_PROPERTIES
+            ]
+            tab = tab.rename_columns(["time", *stream_names])
+            return tab
+
+    def _async_AlignedWindows(
+        self, start: int, end: int, pointwidth: int, version: int = 0
+    ):
+        fut = self._btrdb.ep.async_ArrowAlignedWindows(
+            self.uuid, start=start, end=end, pointwidth=pointwidth, version=version
+        )
+        return self._AsyncArrowAlignedWindowsFuture(fut, version, self.uuid)
+
     def aligned_windows(self, start: int, end: int, pointwidth: int, version: int = 0):
         """Read statistical aggregates of windows of data from BTrDB.
 
@@ -433,18 +456,20 @@ class ArrowStreamSet(StreamSet):
         """
         self.pointwidth = int(pointwidth)
         stream_tables = deque()
+        futs = deque()
         for s in self._streams:
             logger.debug(f"For stream - {s.uuid} -  {s.name}")
-            arr_bytes = s._btrdb.ep.arrowAlignedWindows(
-                s.uuid, start=start, end=end, pointwidth=pointwidth, version=0
+            if len(futs) == STREAMSET_API_DEFAULT_PARALLEL_REQUESTS:
+                stream_tables.append(futs.pop().result())
+            futs.appendleft(
+                s._async_AlignedWindows(
+                    start=start, end=end, pointwidth=self.pointwidth, version=version
+                )
             )
-            # exhausting the generator from above
-            bytes_materialized = list(arr_bytes)
-
-            logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
-            logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
-            # ignore versions for now
-            stream_tables.append(_materialize_stream_as_table(bytes_materialized))
+            logger.debug(f"Futs deque: {futs}")
+        logger.debug(f"futs[0]: {futs[0].fut.fut}")
+        while len(futs) != 0:
+            stream_tables.append(futs.pop().result())
         self._data = _coalesce_table_deque(stream_tables)
         return self
 
