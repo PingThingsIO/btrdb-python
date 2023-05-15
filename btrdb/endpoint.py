@@ -145,7 +145,7 @@ class Endpoint(object):
 
         @error_handler
         def result(self):
-            for res in self.fut.result():
+            for res in self.fut:
                 check_proto_stat(res.stat)
                 yield res.arrowBytes, res.versionMajor
 
@@ -196,7 +196,7 @@ class Endpoint(object):
 
         @error_handler
         def result(self):
-            for res in self.fut.result():
+            for res in self.fut:
                 check_proto_stat(res.stat)
                 yield res.arrowBytes, res.versionMajor
 

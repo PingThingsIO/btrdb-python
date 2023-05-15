@@ -161,6 +161,7 @@ def to_dataframe(
             )
         else:
             df = streamset._data.to_pandas()
+            return df
     else:
         df = pd.DataFrame(to_dict(streamset, agg=agg))
 
