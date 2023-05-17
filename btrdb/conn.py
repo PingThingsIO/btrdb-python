@@ -129,7 +129,7 @@ class BTrDB(object):
 
     def __init__(self, endpoint):
         self.ep = endpoint
-        self._executor = ThreadPoolExecutor()
+        self._executor = ThreadPoolExecutor(max_workers=128)
         logging.debug(f"Threadpool: {self._executor}")
 
     def query(self, stmt, params=[]):

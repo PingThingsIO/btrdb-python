@@ -1,3 +1,4 @@
+import concurrent.futures
 import io
 import logging
 from collections import deque
@@ -365,16 +366,19 @@ class ArrowStreamSet(StreamSet):
         """
         logger.debug("In values method for ArrowStreamSet")
         stream_tables = deque()
-        futs = deque()
-        for s in self._streams:
-            if len(futs) == STREAMSET_API_DEFAULT_PARALLEL_REQUESTS:
-                stream_tables.append(futs.pop().result())
-            futs.appendleft(s._async_values(start=start, end=end))
-            logger.debug(f"Futs deque: {futs}")
-        logger.debug(f"futs[0]: {futs[0].fut.fut}")
-        while len(futs) != 0:
-            stream_tables.append(futs.pop().result())
-        self._data = _coalesce_table_deque(stream_tables)
+        # concurrent.futures.ThreadPoolExecutor.map
+        tables = deque(self._streams[0]._btrdb._executor.map(lambda s: s.values(start, end)._data, self._streams))
+        # print(tables)
+        # futs = deque()
+        # for s in self._streams:
+        #     if len(futs) == STREAMSET_API_DEFAULT_PARALLEL_REQUESTS:
+        #         stream_tables.append(futs.pop().result())
+        #     futs.appendleft(s._async_values(start=start, end=end))
+        #     logger.debug(f"Futs deque: {futs}")
+        # logger.debug(f"futs[0]: {futs[0].fut.fut}")
+        # while len(futs) != 0:
+        #     stream_tables.append(futs.pop().result())
+        self._data = _coalesce_table_deque(tables)
         return self
 
     def windows(
