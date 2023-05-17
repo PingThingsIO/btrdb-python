@@ -38,6 +38,10 @@ from btrdb.exceptions import (
     NoSuchPoint,
 )
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 ##########################################################################
 ## Module Variables
 ##########################################################################
@@ -914,17 +918,18 @@ class StreamSetBase(Sequence):
         return not bool(self.pointwidth or (self.width and self.depth == 0))
 
     def _latest_versions(self):
-        versions = {}
-        futs = deque()
-        for s in self._streams:
-            if len(futs) == STREAMSET_API_DEFAULT_PARALLEL_REQUESTS:
-                (s, fut) = futs.pop()
-                versions[s.uuid] = fut.result()
-            futs.appendleft((s, s._async_version()))
-        while len(futs) != 0:
-            (s, fut) = futs.pop()
-            versions[s.uuid] = fut.result()
-        return versions
+        logger.debug(f"Using executor: {self._streams[0]._btrdb._executor}")
+        versions = self._streams[0]._btrdb._executor.map(lambda s: (s.uuid, s.version()), self._streams)
+        # futs = deque()
+        # for s in self._streams:
+        #     if len(futs) == STREAMSET_API_DEFAULT_PARALLEL_REQUESTS:
+        #         (s, fut) = futs.pop()
+        #         versions[s.uuid] = fut.result()
+        #     futs.appendleft((s, s._async_version()))
+        # while len(futs) != 0:
+        #     (s, fut) = futs.pop()
+        #     versions[s.uuid] = fut.result()
+        return {uuid: version for uuid, version in versions}
 
     def pin_versions(self, versions=None):
         """

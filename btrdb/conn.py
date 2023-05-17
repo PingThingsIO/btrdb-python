@@ -10,7 +10,7 @@
 """
 Connection related objects for the BTrDB library
 """
-
+import logging
 ##########################################################################
 ## Imports
 ##########################################################################
@@ -29,6 +29,8 @@ from btrdb.stream import Stream, StreamSet
 from btrdb.utils.general import unpack_stream_descriptor
 from btrdb.utils.conversion import to_uuid
 from btrdb.exceptions import StreamNotFoundError, InvalidOperation
+
+from concurrent.futures import ThreadPoolExecutor
 
 ##########################################################################
 ## Module Variables
@@ -62,6 +64,7 @@ class Connection(object):
 
         if len(addrport) != 2:
             raise ValueError("expecting address:port")
+
 
         if addrport[1] == "4411":
             # grpc bundles its own CA certs which will work for all normal SSL
@@ -126,6 +129,8 @@ class BTrDB(object):
 
     def __init__(self, endpoint):
         self.ep = endpoint
+        self._executor = ThreadPoolExecutor()
+        logging.debug(f"Threadpool: {self._executor}")
 
     def query(self, stmt, params=[]):
         """
