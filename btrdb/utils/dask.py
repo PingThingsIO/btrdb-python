@@ -1,6 +1,7 @@
 import btrdb
 import dask
 import pandas as pd
+import pyarrow as pa
 from dask.distributed import Client, WorkerPlugin, get_client
 
 # Should this be a pool?
@@ -39,16 +40,16 @@ def configure_cluster(client=None, conn_str=None, apikey=None, profile=None):
 @dask.delayed()
 def _values_as_delayed_pandas_frame(uuid, start, end, ver=0):
     conn = btrdb_connection()
-    points = conn.stream_from_uuid(uuid).values(start, end, ver)
-    times = [p[0].time for p in points]
-    values = [p[0].value for p in points]
-    df = pd.DataFrame(
-        {'value': values},
-        index=pd.to_datetime(times, unit='ns')
+    arr_bytes = conn.ep.arrowRawValues(
+        uu=uuid, start=start, end=end, version=ver
     )
-    df.index.name = 'time'
-    # Drop duplicates based on index
-    df = df.loc[~df.index.duplicated(keep='first')]
+    table_list = []
+    for b, _ in  arr_bytes:
+        with pa.ipc.open_stream(b) as reader:
+            schema = reader.schema
+            table_list.append(reader.read_all())
+    df = pa.concat_tables(table_list).to_pandas()
+    df.set_index('time', inplace=True)
     return df
 
 
