@@ -18,6 +18,7 @@ Module for Stream and related classes
 import re
 import json
 import uuid as uuidlib
+import warnings
 from copy import deepcopy
 from collections.abc import Sequence
 
@@ -841,7 +842,10 @@ class StreamSetBase(Sequence):
 
     def __init__(self, streams):
         self._streams = streams
-        self._btrdb = self._streams[0]._btrdb
+        try:
+            self._btrdb = self._streams[0]._btrdb
+        except Exception as e:
+            warnings.warn(f"Issue setting btrdb object from stream: {e}")
         self._pinned_versions = None
 
         self.filters = []
@@ -967,7 +971,7 @@ class StreamSetBase(Sequence):
             lambda s: s.nearest(start, version=versions.get(s.uuid, 0), backward=False),
             self._streams,
         )
-        for point in earliest_points_gen:
+        for point, _ in earliest_points_gen:
             earliest.append(point)
 
         return tuple(earliest)
@@ -994,7 +998,7 @@ class StreamSetBase(Sequence):
             lambda s: s.nearest(start, version=versions.get(s.uuid, 0), backward=True),
             self._streams,
         )
-        for point in latest_points_gen:
+        for point, _ in latest_points_gen:
             latest.append(point)
 
         return tuple(latest)
