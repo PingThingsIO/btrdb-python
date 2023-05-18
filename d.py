@@ -12,7 +12,7 @@ if __name__ == '__main__':
 	conn = btrdb.connect()
 	streams = conn.streams_in_collection("andy")[:5]
 	start = streams[0].earliest()[0].time
-	end = start + 24*60*60*(10**9) # streams[0].latest()[0].time-1
+	end = start + 14*24*60*60*(10**9) # streams[0].latest()[0].time-1
 	t1=time.time()
 	sub_sums = []
 	for stream in streams:
