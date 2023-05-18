@@ -43,8 +43,8 @@ MAX_POINTWIDTH = 63
 ## Classes
 ##########################################################################
 
-class Connection(object):
 
+class Connection(object):
     def __init__(self, addrportstr, apikey=None):
         """
         Connects to a BTrDB server
@@ -58,7 +58,7 @@ class Connection(object):
 
         """
         addrport = addrportstr.split(":", 2)
-        chan_ops = [('grpc.default_compression_algorithm', CompressionAlgorithm.gzip)]
+        chan_ops = [("grpc.default_compression_algorithm", CompressionAlgorithm.gzip)]
 
         if len(addrport) != 2:
             raise ValueError("expecting address:port")
@@ -83,7 +83,10 @@ class Connection(object):
             except Exception:
                 if env_bundle != "":
                     # The user has given us something but we can't use it, we need to make noise
-                    raise Exception("BTRDB_CA_BUNDLE(%s) env is defined but could not read file" % ca_bundle)
+                    raise Exception(
+                        "BTRDB_CA_BUNDLE(%s) env is defined but could not read file"
+                        % ca_bundle
+                    )
                 else:
                     contents = None
 
@@ -98,16 +101,16 @@ class Connection(object):
                     addrportstr,
                     grpc.composite_channel_credentials(
                         grpc.ssl_channel_credentials(contents),
-                        grpc.access_token_call_credentials(apikey)
+                        grpc.access_token_call_credentials(apikey),
                     ),
-                    options=chan_ops
+                    options=chan_ops,
                 )
         else:
             if apikey is not None:
-                raise ValueError("cannot use an API key with an insecure (port 4410) BTrDB API. Try port 4411")
+                raise ValueError(
+                    "cannot use an API key with an insecure (port 4410) BTrDB API. Try port 4411"
+                )
             self.channel = grpc.insecure_channel(addrportstr, chan_ops)
-
-
 
 
 class BTrDB(object):
@@ -155,7 +158,6 @@ class BTrDB(object):
             for row in page
         ]
 
-
     def streams(self, *identifiers, versions=None, is_collection_prefix=False):
         """
         Returns a StreamSet object with BTrDB streams from the supplied
@@ -198,15 +200,16 @@ class BTrDB(object):
                     found = self.streams_in_collection(
                         "/".join(parts[:-1]),
                         is_collection_prefix=is_collection_prefix,
-                        tags={"name": parts[-1]}
+                        tags={"name": parts[-1]},
                     )
                     if len(found) == 1:
                         streams.append(found[0])
                         continue
                     raise StreamNotFoundError(f"Could not identify stream `{ident}`")
 
-            raise ValueError(f"Could not identify stream based on `{ident}`.  Identifier must be UUID or collection/name.")
-
+            raise ValueError(
+                f"Could not identify stream based on `{ident}`.  Identifier must be UUID or collection/name."
+            )
 
         obj = StreamSet(streams)
 
@@ -261,7 +264,9 @@ class BTrDB(object):
             annotations = {}
 
         self.ep.create(uuid, collection, tags, annotations)
-        return Stream(self, uuid,
+        return Stream(
+            self,
+            uuid,
             known_to_exist=True,
             collection=collection,
             tags=tags.copy(),
@@ -283,7 +288,7 @@ class BTrDB(object):
         return {
             "majorVersion": info.majorVersion,
             "build": info.build,
-            "proxy": { "proxyEndpoints": [ep for ep in info.proxy.proxyEndpoints] },
+            "proxy": {"proxyEndpoints": [ep for ep in info.proxy.proxyEndpoints]},
         }
 
     def list_collections(self, starts_with=""):
@@ -298,7 +303,9 @@ class BTrDB(object):
         """
         return [c for some in self.ep.listCollections(starts_with) for c in some]
 
-    def streams_in_collection(self, *collection, is_collection_prefix=True, tags=None, annotations=None):
+    def streams_in_collection(
+        self, *collection, is_collection_prefix=True, tags=None, annotations=None
+    ):
         """
         Search for streams matching given parameters
 
@@ -333,16 +340,23 @@ class BTrDB(object):
             collection = [None]
 
         for item in collection:
-            streams = self.ep.lookupStreams(item, is_collection_prefix, tags, annotations)
+            streams = self.ep.lookupStreams(
+                item, is_collection_prefix, tags, annotations
+            )
             for desclist in streams:
                 for desc in desclist:
                     tagsanns = unpack_stream_descriptor(desc)
-                    result.append(Stream(
-                        self, uuidlib.UUID(bytes = desc.uuid),
-                        known_to_exist=True, collection=desc.collection,
-                        tags=tagsanns[0], annotations=tagsanns[1],
-                        property_version=desc.propertyVersion
-                    ))
+                    result.append(
+                        Stream(
+                            self,
+                            uuidlib.UUID(bytes=desc.uuid),
+                            known_to_exist=True,
+                            collection=desc.collection,
+                            tags=tagsanns[0],
+                            annotations=tagsanns[1],
+                            property_version=desc.propertyVersion,
+                        )
+                    )
 
         return result
 
