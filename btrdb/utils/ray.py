@@ -2,10 +2,9 @@ import btrdb
 from btrdb.conn import BTrDB
 from functools import partial
 
-
-def register_serializer(conn_str=None, apikey=None, profile=None):
+def configure_cluster(conn_str=None, apikey=None, profile=None):
     """
-    Register serializer for BTrDB Object
+    Configures the ray cluster by registering a serializer for the BTrDB Object
     Parameters
     ----------
     conn_str: str, default=None

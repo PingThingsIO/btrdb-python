@@ -890,6 +890,33 @@ class Stream(object):
         return "<Stream collection={} name={}>".format(self.collection, self.name)
 
 
+    def dask_values(self, start, end, version=0, partitions=1):
+        import dask
+        import pandas as pd
+        import btrdb.utils.dask
+        import dask.dataframe
+        partition_size = (end-start)//partitions
+        parts = []
+        divisions = []
+        for part_start in range(start, end, partition_size):
+            part_end = min(end, part_start+partition_size)
+            part = btrdb.utils.dask._values_as_delayed_pandas_frame(
+                self._uuid, start, end, version
+            )
+            parts.append(part)
+            divisions.append(part_start)
+        divisions.append(end-1)
+        meta=pd.DataFrame(
+            {'value': pd.Series([], dtype='float64')},
+            index=pd.Index([], name='time', dtype='datetime64[ns]')
+        )
+        return dask.dataframe.from_delayed(
+            parts,
+            meta=meta,
+            divisions=divisions,
+        )
+
+
 ##########################################################################
 ## StreamSet  Classes
 ##########################################################################

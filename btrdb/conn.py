@@ -57,6 +57,9 @@ class Connection(object):
             The option API key to authenticate requests
 
         """
+        self._addrportstr = addrportstr
+        self._apikey = apikey
+
         addrport = addrportstr.split(":", 2)
         chan_ops = [('grpc.default_compression_algorithm', CompressionAlgorithm.gzip)]
 
