@@ -20,6 +20,7 @@ import re
 import json
 import certifi
 import uuid as uuidlib
+from concurrent.futures import ThreadPoolExecutor
 
 import grpc
 from grpc._cython.cygrpc import CompressionAlgorithm
@@ -90,7 +91,7 @@ class Connection(object):
                 self.channel = grpc.secure_channel(
                     addrportstr,
                     grpc.ssl_channel_credentials(contents),
-                    options=chan_ops
+                    options=chan_ops,
                 )
             else:
                 self.channel = grpc.secure_channel(
@@ -116,6 +117,7 @@ class BTrDB(object):
 
     def __init__(self, endpoint):
         self.ep = endpoint
+        self._executor = ThreadPoolExecutor()
 
     def query(self, stmt, params=[]):
         """
@@ -209,7 +211,9 @@ class BTrDB(object):
         obj = StreamSet(streams)
 
         if versions:
-            version_dict = {streams[idx].uuid: versions[idx] for idx in range(len(versions))}
+            version_dict = {
+                streams[idx].uuid: versions[idx] for idx in range(len(versions))
+            }
             obj.pin_versions(version_dict)
 
         return obj
@@ -262,7 +266,7 @@ class BTrDB(object):
             collection=collection,
             tags=tags.copy(),
             annotations=annotations.copy(),
-            property_version=0
+            property_version=0,
         )
 
     def info(self):

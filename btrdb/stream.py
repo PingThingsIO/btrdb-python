@@ -800,6 +800,7 @@ class StreamSetBase(Sequence):
 
     def __init__(self, streams):
         self._streams = streams
+        self._btrdb = self._streams[0]._btrdb
         self._pinned_versions = None
 
         self.filters = []
@@ -812,8 +813,10 @@ class StreamSetBase(Sequence):
         return not bool(self.pointwidth or (self.width and self.depth))
 
     def _latest_versions(self):
-        return {s.uuid: s.version() for s in self._streams}
-
+        uuid_ver_tups = self._btrdb._executor.map(
+            lambda s: (s.uuid, s.version()), self._streams
+        )
+        return {uu: v for uu, v in uuid_ver_tups}
 
     def pin_versions(self, versions=None):
         """
@@ -892,13 +895,13 @@ class StreamSetBase(Sequence):
         start = params.get("start", MINIMUM_TIME)
         end = params.get("end", MAXIMUM_TIME)
         versions = self._pinned_versions if self._pinned_versions else {}
-        count = 0
 
-        for s in self._streams:
-            version = versions.get(s.uuid, 0)
-            count += s.count(start, end, version=version)
+        my_counts_gen = self._btrdb._executor.map(
+            lambda s: s.count(start, end, version=versions.get(s.uuid, 0)),
+            self._streams,
+        )
 
-        return count
+        return sum(my_counts_gen)
 
     def earliest(self):
         """
@@ -918,10 +921,11 @@ class StreamSetBase(Sequence):
         params = self._params_from_filters()
         start = params.get("start", MINIMUM_TIME)
         versions = self.versions()
-
-        for s in self._streams:
-            version = versions.get(s.uuid, 0)
-            point, _ = s.nearest(start, version=version, backward=False)
+        earliest_points_gen = self._btrdb._executor.map(
+            lambda s: s.nearest(start, version=versions.get(s.uuid, 0), backward=False),
+            self._streams,
+        )
+        for point in earliest_points_gen:
             earliest.append(point)
 
         return tuple(earliest)
@@ -944,10 +948,11 @@ class StreamSetBase(Sequence):
         params = self._params_from_filters()
         start = params.get("end", MAXIMUM_TIME)
         versions = self.versions()
-
-        for s in self._streams:
-            version = versions.get(s.uuid, 0)
-            point, _ = s.nearest(start, version=version, backward=True)
+        latest_points_gen = self._btrdb._executor.map(
+            lambda s: s.nearest(start, version=versions.get(s.uuid, 0), backward=True),
+            self._streams,
+        )
+        for point in latest_points_gen:
             latest.append(point)
 
         return tuple(latest)
@@ -976,9 +981,12 @@ class StreamSetBase(Sequence):
         if (end is not None and end <= now) or (start is not None and start > now):
             raise BTRDBValueError("current time is not included in filtered stream range")
 
-        for s in self._streams:
-            version = self.versions()[s.uuid]
-            point, _ = s.nearest(now, version=version, backward=True)
+        versions = self.versions()
+        latest_points_gen = self._btrdb._executor.map(
+            lambda s: (s.nearest(now, version=versions.get(s.uuid, 0), backward=True)),
+            self._streams,
+        )
+        for point in latest_points_gen:
             latest.append(point)
 
         return tuple(latest)
@@ -1091,7 +1099,7 @@ class StreamSetBase(Sequence):
             Returns a new copy of the instance
 
         """
-        protected = ('_streams', )
+        protected = ("_streams", "_btrdb")
         clone = self.__class__(self._streams)
         for attr, val in self.__dict__.items():
             if attr not in protected:
@@ -1186,27 +1194,35 @@ class StreamSetBase(Sequence):
         """
         params = self._params_from_filters()
         versions = self.versions()
-        data = []
 
         if self.pointwidth is not None:
             # create list of stream.aligned_windows data
             params.update({"pointwidth": self.pointwidth})
-            for s in self._streams:
-                params.update({"version": versions[s.uuid]})
-                data.append(s.aligned_windows(**params))
-
+            # need to update params based on version of stream, use dict merge
+            aligned_windows_gen = self._btrdb._executor.map(
+                lambda s: s.aligned_windows(
+                    **{**params, **{"version": versions[s.uuid]}}
+                ),
+                self._streams,
+            )
+            data = list(aligned_windows_gen)
 
         elif self.width is not None and self.depth is not None:
             # create list of stream.windows data (the windows method should
             # prevent the possibility that only one of these is None)
             params.update({"width": self.width, "depth": self.depth})
-            for s in self._streams:
-                params.update({"version": versions[s.uuid]})
-                data.append(s.windows(**params))
+            windows_gen = self._btrdb._executor.map(
+                lambda s: s.windows(**{**params, **{"version": versions[s.uuid]}}),
+                self._streams,
+            )
+            data = list(windows_gen)
 
         else:
             # create list of stream.values
-            data = [s.values(**params) for s in self._streams]
+            values_gen = self._btrdb._executor.map(
+                lambda s: s.values(**params), self._streams
+            )
+            data = list(values_gen)
 
         if as_iterators:
             return [iter(ii) for ii in data]
