@@ -118,3 +118,8 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# arrow parquet files
+*.parquet
+
+.idea
