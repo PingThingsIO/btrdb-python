@@ -10,12 +10,18 @@ if __name__ == '__main__':
 	client = dask.distributed.Client(cluster)
 	btrdb.utils.dask.configure_cluster(client)
 	conn = btrdb.connect()
-	streams = conn.streams_in_collection("andy", tags={'name':'ms0370'})
-	stream = streams[0]
-	start = stream.earliest()[0].time
-	end = stream.latest()[0].time-1
-	vals = stream.dask_values(start=start, end=end, partitions=16)
+	streams = conn.streams_in_collection("andy")[:5]
+	start = streams[0].earliest()[0].time
+	end = start + 24*60*60*(10**9) # streams[0].latest()[0].time-1
 	t1=time.time()
-	print(vals.shape[0].compute())
+	sub_sums = []
+	for stream in streams:
+		v = stream.dask_values(start=start, end=end, partitions=2)
+		sub_sums.append(v.shape[0])
+	total = dask.delayed(sum)(sub_sums)
+	#total.visualize(filename="sum.svg", optimize_graph=True)
+	print(total.compute())
 	t2=time.time()
 	print(t2-t1)
+	client.shutdown()
+	cluster.close()
