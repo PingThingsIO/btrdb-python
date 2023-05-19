@@ -38,6 +38,7 @@ from btrdb.exceptions import (
     NoSuchPoint,
 )
 
+import pyarrow as pa
 
 ##########################################################################
 ## Module Variables
@@ -46,6 +47,7 @@ from btrdb.exceptions import (
 INSERT_BATCH_SIZE = 50000
 MINIMUM_TIME = -(16 << 56)
 MAXIMUM_TIME = (48 << 56) - 1
+ARROW_ENABLED = True
 
 try:
     RE_PATTERN = re._pattern_type
@@ -463,12 +465,42 @@ class Stream(object):
             The version of the stream after inserting new points.
 
         """
-        i = 0
         version = 0
-        while i < len(data):
-            thisBatch = data[i : i + INSERT_BATCH_SIZE]
-            version = self._btrdb.ep.insert(self._uuid, thisBatch, merge)
-            i += INSERT_BATCH_SIZE
+        if ARROW_ENABLED:
+            chunksize = INSERT_BATCH_SIZE
+            tmp_table = data.rename_columns(["time", "value"])
+            logger.debug(f"tmp_table schema: {tmp_table.schema}")
+            num_rows = tmp_table.num_rows
+
+            # Calculate the number of batches based on the chunk size
+            num_batches = num_rows // chunksize
+            if num_rows % chunksize != 0 or num_batches == 0:
+                num_batches = num_batches + 1
+
+            table_slices = []
+
+            for i in range(num_batches):
+                start_idx = i * chunksize
+                t = tmp_table.slice(offset=start_idx, length=chunksize)
+                table_slices.append(t)
+
+            # Process the batches as needed
+            version = []
+            for tab in table_slices:
+                logger.debug(f"Table Slice: {tab}")
+                feather_bytes = _table_slice_to_feather_bytes(table_slice=tab)
+                version.append(
+                    self._btrdb.ep.arrowInsertValues(
+                        uu=self.uuid, values=feather_bytes, policy=merge
+                    )
+                )
+            return max(version)
+        else:
+            i = 0
+            while i < len(data):
+                thisBatch = data[i : i + INSERT_BATCH_SIZE]
+                version = self._btrdb.ep.insert(self._uuid, thisBatch, merge)
+                i += INSERT_BATCH_SIZE
         return version
 
     def _update_tags_collection(self, tags, collection):
@@ -654,11 +686,24 @@ class Stream(object):
         materialized = []
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
+        logger.debug(f"For stream - {self.uuid} -  {self.name}")
+        if ARROW_ENABLED:
+            arr_bytes = self._btrdb.ep.arrowRawValues(
+                uu=self.uuid, start=start, end=end, version=0
+            )
+            # exhausting the generator from above
+            bytes_materialized = list(arr_bytes)
 
-        point_windows = self._btrdb.ep.rawValues(self._uuid, start, end, version)
-        for point_list, version in point_windows:
-            for point in point_list:
-                materialized.append((RawPoint.from_proto(point), version))
+            logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
+            logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
+            # ignore versions for now
+            materialized_tables = _materialize_stream_as_table(bytes_materialized)
+            materialized = materialized_tables.rename_columns(["time", str(self.uuid)])
+        else:
+            point_windows = self._btrdb.ep.rawValues(self._uuid, start, end, version)
+            for point_list, version in point_windows:
+                for point in point_list:
+                    materialized.append((RawPoint.from_proto(point), version))
         return materialized
 
     def aligned_windows(self, start, end, pointwidth, version=0):
@@ -704,18 +749,35 @@ class Stream(object):
         As the window-width is a power-of-two, it aligns with BTrDB internal
         tree data structure and is faster to execute than `windows()`.
         """
+        logger.debug(f"For stream - {self.uuid} -  {self.name}")
         materialized = []
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
+        if ARROW_ENABLED:
+            arr_bytes = self._btrdb.ep.arrowAlignedWindows(
+                self.uuid, start=start, end=end, pointwidth=pointwidth, version=version
+            )
+            # exhausting the generator from above
+            bytes_materialized = list(arr_bytes)
 
-        windows = self._btrdb.ep.alignedWindows(
-            self._uuid, start, end, pointwidth, version
-        )
-        for stat_points, version in windows:
-            for point in stat_points:
-                materialized.append((StatPoint.from_proto(point), version))
+            logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
+            logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
+            # ignore versions for now
+            materialized_table = _materialize_stream_as_table(bytes_materialized)
+            stream_names = [
+                "/".join([self.collection, self.name, prop]) for prop in _STAT_PROPERTIES
+            ]
+            materialized = materialized_table.rename_columns(["time", *stream_names])
+            return materialized
+        else:
+            windows = self._btrdb.ep.alignedWindows(
+                self._uuid, start, end, pointwidth, version
+            )
+            for stat_points, version in windows:
+                for point in stat_points:
+                    materialized.append((StatPoint.from_proto(point), version))
 
-        return tuple(materialized)
+            return tuple(materialized)
 
     def windows(self, start, end, width, depth=0, version=0):
         """
@@ -760,13 +822,29 @@ class Stream(object):
         materialized = []
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
+        if ARROW_ENABLED:
+            arr_bytes = self._btrdb.ep.arrowWindows(
+                self.uuid, start=start, end=end, width=width, depth=depth, version=version
+            )
+            # exhausting the generator from above
+            bytes_materialized = list(arr_bytes)
 
-        windows = self._btrdb.ep.windows(self._uuid, start, end, width, depth, version)
-        for stat_points, version in windows:
-            for point in stat_points:
-                materialized.append((StatPoint.from_proto(point), version))
+            logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
+            logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
+            # ignore versions for now
+            materialized = _materialize_stream_as_table(bytes_materialized)
+            stream_names = [
+                "/".join([self.collection, self.name, prop]) for prop in _STAT_PROPERTIES
+            ]
+            materialized_table = materialized.rename_columns(["time", *stream_names])
+            return materialized_table
+        else:
+            windows = self._btrdb.ep.windows(self._uuid, start, end, width, depth, version)
+            for stat_points, version in windows:
+                for point in stat_points:
+                    materialized.append((StatPoint.from_proto(point), version))
 
-        return tuple(materialized)
+            return tuple(materialized)
 
     def nearest(self, time, version, backward=False):
         """
@@ -1428,3 +1506,33 @@ class StreamFilter(object):
 
         if self.start is not None and self.end is not None and self.start >= self.end:
             raise BTRDBValueError("`start` must be strictly less than `end` argument")
+
+
+def _materialize_stream_as_table(arrow_bytes):
+    table_list = []
+    for b, _ in arrow_bytes:
+        with pa.ipc.open_stream(b) as reader:
+            schema = reader.schema
+            logger.debug(f"schema: {schema}")
+            table_list.append(reader.read_all())
+    logger.debug(f"table list: {table_list}")
+    table = pa.concat_tables(table_list)
+    return table
+
+
+def _table_slice_to_feather_bytes(table_slice: pa.Table) -> bytes:
+    my_bytes = io.BytesIO()
+    write_feather(table_slice, dest=my_bytes)
+    return my_bytes.getvalue()
+
+
+def _coalesce_table_deque(tables: deque):
+    main_table = tables.popleft()
+    idx = 0
+    while len(tables) != 0:
+        idx = idx + 1
+        t2 = tables.popleft()
+        main_table = main_table.join(
+            t2, "time", join_type="full outer", right_suffix=f"_{idx}"
+        )
+    return main_table
