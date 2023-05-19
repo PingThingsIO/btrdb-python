@@ -15,35 +15,37 @@ Module for Stream and related classes
 ## Imports
 ##########################################################################
 
-import re
 import json
+import logging
+import re
 import uuid as uuidlib
 import warnings
-from copy import deepcopy
+from collections import deque
 from collections.abc import Sequence
+from copy import deepcopy
 
-from btrdb.utils.buffer import PointBuffer
-from btrdb.point import RawPoint, StatPoint
-from btrdb.transformers import StreamSetTransformer
-from btrdb.utils.timez import currently_as_ns, to_nanoseconds
-from btrdb.utils.conversion import AnnotationEncoder, AnnotationDecoder
-from btrdb.utils.general import pointwidth as pw
+import pyarrow as pa
+
 from btrdb.exceptions import (
     BTrDBError,
     BTRDBTypeError,
     BTRDBValueError,
-    InvalidOperation,
     InvalidCollection,
-    StreamNotFoundError,
+    InvalidOperation,
     NoSuchPoint,
+    StreamNotFoundError,
 )
-
-import pyarrow as pa
+from btrdb.point import RawPoint, StatPoint
+from btrdb.transformers import StreamSetTransformer, _STAT_PROPERTIES
+from btrdb.utils.buffer import PointBuffer
+from btrdb.utils.conversion import AnnotationDecoder, AnnotationEncoder
+from btrdb.utils.general import pointwidth as pw
+from btrdb.utils.timez import currently_as_ns, to_nanoseconds
 
 ##########################################################################
 ## Module Variables
 ##########################################################################
-
+logger = logging.getLogger(__name__)
 INSERT_BATCH_SIZE = 50000
 MINIMUM_TIME = -(16 << 56)
 MAXIMUM_TIME = (48 << 56) - 1
@@ -200,18 +202,26 @@ class Stream(object):
             The total number of points in the stream for the specified window.
         """
 
+        arr_col = f"{self.collection + '/' + self.name + '/' + 'count'}"
         if not precise:
             pointwidth = min(
                 pointwidth,
                 pw.from_nanoseconds(to_nanoseconds(end) - to_nanoseconds(start)) - 1,
             )
             points = self.aligned_windows(start, end, pointwidth, version)
-            return sum([point.count for point, _ in points])
+            if ARROW_ENABLED:
+                arr_col = f"{self.collection + '/' + self.name + '/' + 'count'}"
+                print(points.column(arr_col))
+            else:
+                return sum([point.count for point in points])
 
         depth = 0
         width = to_nanoseconds(end) - to_nanoseconds(start)
         points = self.windows(start, end, width, depth, version)
-        return sum([point.count for point, _ in points])
+        if ARROW_ENABLED:
+            return sum(points.column(arr_col).to_pylist())
+        else:
+            return sum([point.count for point  in points])
 
     @property
     def btrdb(self):
@@ -765,7 +775,8 @@ class Stream(object):
             # ignore versions for now
             materialized_table = _materialize_stream_as_table(bytes_materialized)
             stream_names = [
-                "/".join([self.collection, self.name, prop]) for prop in _STAT_PROPERTIES
+                "/".join([self.collection, self.name, prop])
+                for prop in _STAT_PROPERTIES
             ]
             materialized = materialized_table.rename_columns(["time", *stream_names])
             return materialized
@@ -824,7 +835,12 @@ class Stream(object):
         end = to_nanoseconds(end)
         if ARROW_ENABLED:
             arr_bytes = self._btrdb.ep.arrowWindows(
-                self.uuid, start=start, end=end, width=width, depth=depth, version=version
+                self.uuid,
+                start=start,
+                end=end,
+                width=width,
+                depth=depth,
+                version=version,
             )
             # exhausting the generator from above
             bytes_materialized = list(arr_bytes)
@@ -834,12 +850,15 @@ class Stream(object):
             # ignore versions for now
             materialized = _materialize_stream_as_table(bytes_materialized)
             stream_names = [
-                "/".join([self.collection, self.name, prop]) for prop in _STAT_PROPERTIES
+                "/".join([self.collection, self.name, prop])
+                for prop in _STAT_PROPERTIES
             ]
             materialized_table = materialized.rename_columns(["time", *stream_names])
             return materialized_table
         else:
-            windows = self._btrdb.ep.windows(self._uuid, start, end, width, depth, version)
+            windows = self._btrdb.ep.windows(
+                self._uuid, start, end, width, depth, version
+            )
             for stat_points, version in windows:
                 for point in stat_points:
                     materialized.append((StatPoint.from_proto(point), version))
@@ -1377,6 +1396,17 @@ class StreamSetBase(Sequence):
                 lambda s: s.values(**params), self._streams
             )
             data = list(values_gen)
+            if ARROW_ENABLED:
+                tables = deque(data)
+                main_table = tables.popleft()
+                idx = 0
+                while len(tables) != 0:
+                    idx = idx + 1
+                    t2 = tables.popleft()
+                    main_table = main_table.join(
+                        t2, "time", join_type="full outer", right_suffix=f"_{idx}"
+                    )
+                return main_table
 
         if as_iterators:
             return [iter(ii) for ii in data]
@@ -1448,10 +1478,12 @@ class StreamSetBase(Sequence):
         """
         result = []
         streamset_data = self._streamset_data()
-        for stream_data in streamset_data:
-            result.append([point[0] for point in stream_data])
-
-        return result
+        if ARROW_ENABLED:
+            return streamset_data
+        else:
+            for stream_data in streamset_data:
+                result.append([point[0] for point in stream_data])
+            return result
 
     def __repr__(self):
         token = "stream" if len(self) == 1 else "streams"

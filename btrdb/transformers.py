@@ -25,7 +25,7 @@ from warnings import warn
 ##########################################################################
 
 _STAT_PROPERTIES = ('min', 'mean', 'max', 'count', 'stddev')
-
+ARROW_ENABLED = True
 def _get_time_from_row(row):
     for item in row:
         if item: return item.time
@@ -143,8 +143,10 @@ def to_dataframe(streamset, columns=None, agg="mean", name_callable=None):
     if not callable(name_callable):
         name_callable = lambda s: s.collection + "/" +  s.name
 
-
-    df = pd.DataFrame(to_dict(streamset,agg=agg))
+    if ARROW_ENABLED:
+        df = streamset.values().to_pandas()
+    else:
+        df = pd.DataFrame(to_dict(streamset,agg=agg))
 
     if not df.empty:
         df = df.set_index("time")
