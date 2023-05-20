@@ -215,7 +215,7 @@ def to_polars(streamset, agg='mean', name_callable=None):
 
         df = streamset.to_dataframe(agg=agg)
     else:
-        df = pd.DataFrame(to_dict(streamset,agg=agg, name_callable=name_callcable))
+        df = pd.DataFrame(to_dict(streamset,agg=agg, name_callable=name_callable))
 
     if not df.empty:
         if df.index.name == "time":
