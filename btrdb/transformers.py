@@ -189,7 +189,6 @@ def to_array(streamset, agg="mean"):
             else:
                 segment.append(getattr(point, agg))
         results.append(np.array(segment))
-    print(results)
     return np.array(results, dtype=object)
 
 
