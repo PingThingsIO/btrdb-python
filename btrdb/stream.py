@@ -26,17 +26,11 @@ from copy import deepcopy
 
 import pyarrow as pa
 
-from btrdb.exceptions import (
-    BTrDBError,
-    BTRDBTypeError,
-    BTRDBValueError,
-    InvalidCollection,
-    InvalidOperation,
-    NoSuchPoint,
-    StreamNotFoundError,
-)
+from btrdb.exceptions import (BTrDBError, BTRDBTypeError, BTRDBValueError,
+                              InvalidCollection, InvalidOperation, NoSuchPoint,
+                              StreamNotFoundError)
 from btrdb.point import RawPoint, StatPoint
-from btrdb.transformers import StreamSetTransformer, _STAT_PROPERTIES
+from btrdb.transformers import _STAT_PROPERTIES, StreamSetTransformer
 from btrdb.utils.buffer import PointBuffer
 from btrdb.utils.conversion import AnnotationDecoder, AnnotationEncoder
 from btrdb.utils.general import pointwidth as pw
@@ -211,9 +205,8 @@ class Stream(object):
             points = self.aligned_windows(start, end, pointwidth, version)
             if ARROW_ENABLED:
                 arr_col = f"{self.collection + '/' + self.name + '/' + 'count'}"
-                print(points.column(arr_col))
             else:
-                return sum([point.count for point in points])
+                return sum([point.count for point, _ in points])
 
         depth = 0
         width = to_nanoseconds(end) - to_nanoseconds(start)
@@ -221,7 +214,7 @@ class Stream(object):
         if ARROW_ENABLED:
             return sum(points.column(arr_col).to_pylist())
         else:
-            return sum([point.count for point  in points])
+            return sum([point.count for point, _ in points])
 
     @property
     def btrdb(self):
@@ -778,8 +771,8 @@ class Stream(object):
                 "/".join([self.collection, self.name, prop])
                 for prop in _STAT_PROPERTIES
             ]
-            materialized = materialized_table.rename_columns(["time", *stream_names])
-            return materialized
+            materialized_table = materialized_table.rename_columns(["time", *stream_names])
+            return materialized_table
         else:
             windows = self._btrdb.ep.alignedWindows(
                 self._uuid, start, end, pointwidth, version
@@ -787,7 +780,6 @@ class Stream(object):
             for stat_points, version in windows:
                 for point in stat_points:
                     materialized.append((StatPoint.from_proto(point), version))
-
             return tuple(materialized)
 
     def windows(self, start, end, width, depth=0, version=0):
@@ -948,11 +940,11 @@ class StreamSetBase(Sequence):
         self.filters = []
         self.pointwidth = None
         self.width = None
-        self.depth = None
+        self.depth = 0
 
     @property
     def allow_window(self):
-        return not bool(self.pointwidth or (self.width and self.depth))
+        return bool(self.pointwidth or (self.width and self.depth == 0))
 
     def _latest_versions(self):
         uuid_ver_tups = self._btrdb._executor.map(
@@ -1044,7 +1036,7 @@ class StreamSetBase(Sequence):
             self._streams,
         )
 
-        return sum(my_counts_gen)
+        return sum(list(my_counts_gen))
 
     def earliest(self):
         """
@@ -1313,7 +1305,7 @@ class StreamSetBase(Sequence):
         available has been deprecated. The only valid value for depth is now 0.
 
         """
-        if not self.allow_window:
+        if self.allow_window:
             raise InvalidOperation("A window operation is already requested")
 
         # TODO: refactor keeping in mind how exception is raised
@@ -1379,6 +1371,14 @@ class StreamSetBase(Sequence):
                 self._streams,
             )
             data = list(aligned_windows_gen)
+            if ARROW_ENABLED:
+                tablex = data.pop()
+                if data:
+                    for tab in data:
+                        tablex = tablex.join(tab, "time", join_type="full outer")
+                    data = tablex
+                else:
+                    data = tablex
 
         elif self.width is not None and self.depth is not None:
             # create list of stream.windows data (the windows method should
@@ -1389,6 +1389,14 @@ class StreamSetBase(Sequence):
                 self._streams,
             )
             data = list(windows_gen)
+            if ARROW_ENABLED:
+                tablex = data.pop()
+                if data:
+                    for tab in data:
+                        tablex = tablex.join(tab, "time", join_type="full outer")
+                    data = tablex
+                else:
+                    data = tablex
 
         else:
             # create list of stream.values

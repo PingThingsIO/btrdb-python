@@ -20,6 +20,8 @@ import contextlib
 from collections import OrderedDict
 from warnings import warn
 
+import pandas as pd
+
 ##########################################################################
 ## Helper Functions
 ##########################################################################
@@ -127,16 +129,12 @@ def to_dataframe(streamset, columns=None, agg="mean", name_callable=None):
     except ImportError:
         raise ImportError("Please install Pandas to use this transformation function.")
 
-    # deprecation warning added in v5.8
-    if columns:
-        warn("the columns argument is deprecated and will be removed in a future release", DeprecationWarning, stacklevel=2)
-
     # TODO: allow this at some future point
     if agg == "all" and name_callable is not None:
         raise AttributeError("cannot provide name_callable when using 'all' as aggregate at this time")
 
     # do not allow agg="all" with RawPoints
-    if agg == "all" and streamset.allow_window:
+    if agg == "all" and not streamset.allow_window:
         agg=""
 
     # default arg values
@@ -144,20 +142,95 @@ def to_dataframe(streamset, columns=None, agg="mean", name_callable=None):
         name_callable = lambda s: s.collection + "/" +  s.name
 
     if ARROW_ENABLED:
-        df = streamset.values().to_pandas()
+        try:
+            import pyarrow as pa
+        except ImportError:
+            raise ImportError("Please install pyarrow to use the arrow-enabled function.")
+        tmp_table = streamset.values()
+        col_names = _stream_names(streamset, name_callable)
+        cols = []
+        for name in col_names:
+            for prop in _STAT_PROPERTIES:
+                cols.append(name + "/" + prop)
+        if agg == "all":
+            tmp = tmp_table.select(["time", *cols])
+        elif streamset.allow_window:
+            usable_cols = [val for val in cols if agg in val]
+            tmp = tmp_table.select(["time", *usable_cols])
+        else:
+            tmp = tmp_table
+        df = tmp.to_pandas()
     else:
         df = pd.DataFrame(to_dict(streamset,agg=agg))
 
     if not df.empty:
         df = df.set_index("time")
 
-        if agg == "all" and not streamset.allow_window:
+        if agg == "all" and streamset.allow_window:
             stream_names = [[s.collection, s.name, prop] for s in streamset._streams for prop in _STAT_PROPERTIES]
             df.columns=pd.MultiIndex.from_tuples(stream_names)
         else:
             df.columns =  columns if columns else _stream_names(streamset, name_callable)
 
     return df
+
+
+def to_polars(streamset, agg='mean', name_callable=None):
+    """
+    Returns a Polars DataFrame object with time as a column and the values of a
+    stream for each additional column.
+
+    Parameters
+    ----------
+    agg : str, default: "mean"
+        Specify the StatPoint field (e.g. aggregating function) to create the Series
+        from. Must be one of "min", "mean", "max", "count", "stddev", or "all". This
+        argument is ignored if not using StatPoints.
+
+    name_callable : lambda, default: lambda s: s.collection + "/" +  s.name
+        Sprecify a callable that can be used to determine the series name given a
+        Stream object.  This is not compatible with agg == "all" at this time
+    """
+    if ARROW_ENABLED:
+        try:
+            import pyarrow as pa
+        except ImportError:
+            raise ImportError("Please install pyarrow to use the arrow-enabled features of btrdb.")
+    try:
+        import polars as pl
+    except ImportError:
+        raise ImportError("Please install polars to use this transformation function.")
+
+    # TODO: allow this at some future point
+    if agg == "all" and name_callable is not None:
+        raise AttributeError("cannot provide name_callable when using 'all' as aggregate at this time")
+
+    # do not allow agg="all" with RawPoints
+    if agg == "all" and not streamset.allow_window:
+        agg=""
+
+    # default arg values
+    if not callable(name_callable):
+        name_callable = lambda s: s.collection + "/" +  s.name
+
+        df = streamset.to_dataframe(agg=agg)
+    else:
+        df = pd.DataFrame(to_dict(streamset,agg=agg, name_callable=name_callcable))
+
+    if not df.empty:
+        if df.index.name == "time":
+            pass
+        else:
+            df = df.set_index("time")
+
+        if agg == "all" and streamset.allow_window:
+            stream_names = [[s.collection, s.name, prop] for s in streamset._streams for prop in _STAT_PROPERTIES]
+            df.columns=pd.MultiIndex.from_tuples(stream_names)
+        else:
+            df.columns =  _stream_names(streamset, name_callable)
+
+    return pl.from_pandas(df.reset_index())
+
 
 
 def to_array(streamset, agg="mean"):
@@ -182,6 +255,15 @@ def to_array(streamset, agg="mean"):
     if agg == "all":
         raise AttributeError("cannot use 'all' as aggregate at this time")
 
+    if ARROW_ENABLED:
+        try:
+            import pyarrow as pa
+        except ImportError:
+            raise ImportError("Please install pyarrow to use this arrow-enabled transformation function.")
+        results = streamset.values()
+        assert isinstance(results, pa.Table)
+        arr = results.to_pandas().values
+        return arr
     results = []
     for points in streamset.values():
         segment = []
@@ -191,7 +273,6 @@ def to_array(streamset, agg="mean"):
             else:
                 segment.append(getattr(point, agg))
         results.append(np.array(segment))
-    print(results)
     return np.array(results, dtype=object)
 
 
@@ -337,6 +418,7 @@ class StreamSetTransformer(object):
     to_array = to_array
     to_series = to_series
     to_dataframe = to_dataframe
+    to_polars = to_polars
 
     to_csv = to_csv
     to_table = to_table
