@@ -10,11 +10,9 @@
 """
 Module for Stream and related classes
 """
-
 ##########################################################################
 ## Imports
 ##########################################################################
-
 import json
 import logging
 import re
@@ -26,9 +24,15 @@ from copy import deepcopy
 
 import pyarrow as pa
 
-from btrdb.exceptions import (BTrDBError, BTRDBTypeError, BTRDBValueError,
-                              InvalidCollection, InvalidOperation, NoSuchPoint,
-                              StreamNotFoundError)
+from btrdb.exceptions import (
+    BTrDBError,
+    BTRDBTypeError,
+    BTRDBValueError,
+    InvalidCollection,
+    InvalidOperation,
+    NoSuchPoint,
+    StreamNotFoundError,
+)
 from btrdb.point import RawPoint, StatPoint
 from btrdb.transformers import _STAT_PROPERTIES, StreamSetTransformer
 from btrdb.utils.buffer import PointBuffer
@@ -43,7 +47,6 @@ logger = logging.getLogger(__name__)
 INSERT_BATCH_SIZE = 50000
 MINIMUM_TIME = -(16 << 56)
 MAXIMUM_TIME = (48 << 56) - 1
-ARROW_ENABLED = True
 
 try:
     RE_PATTERN = re._pattern_type
@@ -203,7 +206,7 @@ class Stream(object):
                 pw.from_nanoseconds(to_nanoseconds(end) - to_nanoseconds(start)) - 1,
             )
             points = self.aligned_windows(start, end, pointwidth, version)
-            if ARROW_ENABLED:
+            if self._btrdb._ARROW_ENABLED:
                 arr_col = f"{self.collection + '/' + self.name + '/' + 'count'}"
             else:
                 return sum([point.count for point, _ in points])
@@ -211,7 +214,7 @@ class Stream(object):
         depth = 0
         width = to_nanoseconds(end) - to_nanoseconds(start)
         points = self.windows(start, end, width, depth, version)
-        if ARROW_ENABLED:
+        if self._btrdb._ARROW_ENABLED:
             return sum(points.column(arr_col).to_pylist())
         else:
             return sum([point.count for point, _ in points])
@@ -469,7 +472,7 @@ class Stream(object):
 
         """
         version = 0
-        if ARROW_ENABLED:
+        if self._btrdb._ARROW_ENABLED:
             chunksize = INSERT_BATCH_SIZE
             tmp_table = data.rename_columns(["time", "value"])
             logger.debug(f"tmp_table schema: {tmp_table.schema}")
@@ -690,7 +693,7 @@ class Stream(object):
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
         logger.debug(f"For stream - {self.uuid} -  {self.name}")
-        if ARROW_ENABLED:
+        if self._btrdb._ARROW_ENABLED:
             arr_bytes = self._btrdb.ep.arrowRawValues(
                 uu=self.uuid, start=start, end=end, version=0
             )
@@ -756,7 +759,7 @@ class Stream(object):
         materialized = []
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
-        if ARROW_ENABLED:
+        if self._btrdb._ARROW_ENABLED:
             arr_bytes = self._btrdb.ep.arrowAlignedWindows(
                 self.uuid, start=start, end=end, pointwidth=pointwidth, version=version
             )
@@ -771,7 +774,9 @@ class Stream(object):
                 "/".join([self.collection, self.name, prop])
                 for prop in _STAT_PROPERTIES
             ]
-            materialized_table = materialized_table.rename_columns(["time", *stream_names])
+            materialized_table = materialized_table.rename_columns(
+                ["time", *stream_names]
+            )
             return materialized_table
         else:
             windows = self._btrdb.ep.alignedWindows(
@@ -825,7 +830,7 @@ class Stream(object):
         materialized = []
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
-        if ARROW_ENABLED:
+        if self._btrdb._ARROW_ENABLED:
             arr_bytes = self._btrdb.ep.arrowWindows(
                 self.uuid,
                 start=start,
@@ -1371,7 +1376,7 @@ class StreamSetBase(Sequence):
                 self._streams,
             )
             data = list(aligned_windows_gen)
-            if ARROW_ENABLED:
+            if self._btrdb._ARROW_ENABLED:
                 tablex = data.pop()
                 if data:
                     for tab in data:
@@ -1389,7 +1394,7 @@ class StreamSetBase(Sequence):
                 self._streams,
             )
             data = list(windows_gen)
-            if ARROW_ENABLED:
+            if self._btrdb._ARROW_ENABLED:
                 tablex = data.pop()
                 if data:
                     for tab in data:
@@ -1404,7 +1409,7 @@ class StreamSetBase(Sequence):
                 lambda s: s.values(**params), self._streams
             )
             data = list(values_gen)
-            if ARROW_ENABLED:
+            if self._btrdb._ARROW_ENABLED:
                 tables = deque(data)
                 main_table = tables.popleft()
                 idx = 0
@@ -1486,7 +1491,7 @@ class StreamSetBase(Sequence):
         """
         result = []
         streamset_data = self._streamset_data()
-        if ARROW_ENABLED:
+        if self._btrdb._ARROW_ENABLED:
             return streamset_data
         else:
             for stream_data in streamset_data:

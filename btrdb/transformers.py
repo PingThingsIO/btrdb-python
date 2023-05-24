@@ -27,7 +27,6 @@ import pandas as pd
 ##########################################################################
 
 _STAT_PROPERTIES = ('min', 'mean', 'max', 'count', 'stddev')
-ARROW_ENABLED = True
 def _get_time_from_row(row):
     for item in row:
         if item: return item.time
@@ -141,7 +140,7 @@ def to_dataframe(streamset, columns=None, agg="mean", name_callable=None):
     if not callable(name_callable):
         name_callable = lambda s: s.collection + "/" +  s.name
 
-    if ARROW_ENABLED:
+    if streamset[0]._btrdb._ARROW_ENABLED:
         try:
             import pyarrow as pa
         except ImportError:
@@ -191,7 +190,7 @@ def to_polars(streamset, agg='mean', name_callable=None):
         Sprecify a callable that can be used to determine the series name given a
         Stream object.  This is not compatible with agg == "all" at this time
     """
-    if ARROW_ENABLED:
+    if streamset[0]._btrdb._ARROW_ENABLED:
         try:
             import pyarrow as pa
         except ImportError:
@@ -255,7 +254,7 @@ def to_array(streamset, agg="mean"):
     if agg == "all":
         raise AttributeError("cannot use 'all' as aggregate at this time")
 
-    if ARROW_ENABLED:
+    if streamset[0]._btrdb._ARROW_ENABLED:
         try:
             import pyarrow as pa
         except ImportError:
