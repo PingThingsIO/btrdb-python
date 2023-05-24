@@ -1566,9 +1566,10 @@ def _materialize_stream_as_table(arrow_bytes):
 
 
 def _table_slice_to_feather_bytes(table_slice: pa.Table) -> bytes:
-    my_bytes = io.BytesIO()
-    write_feather(table_slice, dest=my_bytes)
-    return my_bytes.getvalue()
+    sink = pa.BufferOutputStream()
+    with pa.ipc.new_stream(sink=sink, schema=table_slice.schema) as writer:
+        writer.write_table(table_slice)
+    return sink.readall()
 
 
 def _coalesce_table_deque(tables: deque):
