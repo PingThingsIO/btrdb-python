@@ -22,6 +22,8 @@ from warnings import warn
 
 import pandas as pd
 
+import btrdb.stream
+
 ##########################################################################
 ## Helper Functions
 ##########################################################################
@@ -101,6 +103,35 @@ def to_series(streamset, datetime64_index=True, agg="mean", name_callable=None):
         ))
     return result
 
+def arrow_to_dataframe(streamset, columns=None, agg='mean', name_callable=None)->pd.DataFrame:
+    """
+    Returns a Pandas DataFrame object indexed by time and using the values of a
+    stream for each column.
+
+    Parameters
+    ----------
+    columns: sequence
+        column names to use for DataFrame.  Deprecated and not compatible with name_callable.
+
+    agg : str, default: "mean"
+        Specify the StatPoint field (e.g. aggregating function) to create the Series
+        from. Must be one of "min", "mean", "max", "count", "stddev", or "all". This
+        argument is ignored if not using StatPoints.
+
+    name_callable : lambda, default: lambda s: s.collection + "/" +  s.name
+        Specify a callable that can be used to determine the series name given a
+        Stream object.  This is not compatible with agg == "all" at this time
+    """
+    if not streamset._btrdb._ARROW_ENABLED:
+        raise NotImplementedError(f"arrow_to_dataframe requires an arrow-enabled BTrDB server.")
+
+    try:
+        import pandas as pd
+    except ImportError:
+        raise ImportError("Please install Pandas to use this transformation function.")
+
+    table = streamset.arrow_values()
+    return table.to_pandas()
 
 def to_dataframe(streamset, columns=None, agg="mean", name_callable=None):
     """
@@ -407,6 +438,7 @@ class StreamSetTransformer(object):
     to_array = to_array
     to_series = to_series
     to_dataframe = to_dataframe
+    arrow_to_dataframe = arrow_to_dataframe
     to_polars = to_polars
 
     to_csv = to_csv
