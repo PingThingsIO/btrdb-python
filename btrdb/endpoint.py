@@ -35,6 +35,7 @@ from btrdb.point import RawPoint
 from btrdb.exceptions import BTrDBError, error_handler, check_proto_stat
 from btrdb.utils.general import unpack_stream_descriptor
 
+logger = logging.getLogger(__name__)
 
 class Endpoint(object):
     def __init__(self, channel):
@@ -266,10 +267,14 @@ class Endpoint(object):
 
     @error_handler
     def nearest(self, uu, time, version, backward):
+        logger.debug(f"nearest function params: {uu}\t{time}\t{version}\t{backward}")
         params = btrdb_pb2.NearestParams(
             uuid=uu.bytes, time=time, versionMajor=version, backward=backward
         )
+        logger.debug(f"params from nearest: {params}")
+        logger.debug(f"uuid: {uu}")
         result = self.stub.Nearest(params)
+        logger.debug(f"nearest, results: {result}")
         check_proto_stat(result.stat)
         return result.value, result.versionMajor
 

@@ -200,25 +200,18 @@ class Stream(object):
             The total number of points in the stream for the specified window.
         """
 
-        arr_col = f"{self.collection + '/' + self.name + '/' + 'count'}"
         if not precise:
             pointwidth = min(
                 pointwidth,
                 pw.from_nanoseconds(to_nanoseconds(end) - to_nanoseconds(start)) - 1,
             )
             points = self.aligned_windows(start, end, pointwidth, version)
-            if self._btrdb._ARROW_ENABLED:
-                arr_col = f"{self.collection + '/' + self.name + '/' + 'count'}"
-            else:
-                return sum([point.count for point, _ in points])
+            return sum([point.count for point, _ in points])
 
         depth = 0
         width = to_nanoseconds(end) - to_nanoseconds(start)
         points = self.windows(start, end, width, depth, version)
-        if self._btrdb._ARROW_ENABLED:
-            return sum(points.column(arr_col).to_pylist())
-        else:
-            return sum([point.count for point, _ in points])
+        return sum([point.count for point, _ in points])
 
     @property
     def btrdb(self):
@@ -473,42 +466,77 @@ class Stream(object):
 
         """
         version = 0
-        if self._btrdb._ARROW_ENABLED:
-            chunksize = INSERT_BATCH_SIZE
-            tmp_table = data.rename_columns(["time", "value"])
-            logger.debug(f"tmp_table schema: {tmp_table.schema}")
-            num_rows = tmp_table.num_rows
-
-            # Calculate the number of batches based on the chunk size
-            num_batches = num_rows // chunksize
-            if num_rows % chunksize != 0 or num_batches == 0:
-                num_batches = num_batches + 1
-
-            table_slices = []
-
-            for i in range(num_batches):
-                start_idx = i * chunksize
-                t = tmp_table.slice(offset=start_idx, length=chunksize)
-                table_slices.append(t)
-
-            # Process the batches as needed
-            version = []
-            for tab in table_slices:
-                logger.debug(f"Table Slice: {tab}")
-                feather_bytes = _table_slice_to_feather_bytes(table_slice=tab)
-                version.append(
-                    self._btrdb.ep.arrowInsertValues(
-                        uu=self.uuid, values=feather_bytes, policy=merge
-                    )
-                )
-            return max(version)
-        else:
-            i = 0
-            while i < len(data):
-                thisBatch = data[i : i + INSERT_BATCH_SIZE]
-                version = self._btrdb.ep.insert(self._uuid, thisBatch, merge)
-                i += INSERT_BATCH_SIZE
+        i = 0
+        while i < len(data):
+            thisBatch = data[i : i + INSERT_BATCH_SIZE]
+            version = self._btrdb.ep.insert(self._uuid, thisBatch, merge)
+            i += INSERT_BATCH_SIZE
         return version
+
+    def arrow_insert(self, data: pa.Table, merge: str = "never") -> int:
+        """
+        Insert new data in the form of a pyarrow Table with (time, value) columns.
+
+        Inserts a table of new (time, value) columns into the stream. The values
+        in the table need not be sorted by time. If the arrays are larger than
+        appropriate, this function will automatically chunk the inserts. As a
+        consequence, the insert is not necessarily atomic, but can be used with
+        a very large array.
+
+        Parameters
+        ----------
+        data: pyarrow.Table, required
+            A pyarrow table with a schema of time:Timestamp[ns, tz=UTC], value:float64
+            This schema will be validated and converted if necessary.
+        merge: str
+            A string describing the merge policy. Valid policies are:
+              - 'never': the default, no points are merged
+              - 'equal': points are deduplicated if the time and value are equal
+              - 'retain': if two points have the same timestamp, the old one is kept
+              - 'replace': if two points have the same timestamp, the new one is kept
+
+        Returns
+        -------
+        int
+            The version of the stream after inserting new points.
+
+        """
+
+        chunksize = INSERT_BATCH_SIZE
+        tmp_table = data.rename_columns(["time", "value"])
+        logger.debug(f"tmp_table schema: {tmp_table.schema}")
+        new_schema = pa.schema(
+            [
+                (pa.field("time", pa.timestamp(unit="ns", tz="UTC"))),
+                (pa.field("value", pa.float64())),
+            ]
+        )
+        tmp_table = tmp_table.cast(new_schema)
+        num_rows = tmp_table.num_rows
+
+        # Calculate the number of batches based on the chunk size
+        num_batches = num_rows // chunksize
+        if num_rows % chunksize != 0 or num_batches == 0:
+            num_batches = num_batches + 1
+
+        table_slices = []
+
+        for i in range(num_batches):
+            start_idx = i * chunksize
+            t = tmp_table.slice(offset=start_idx, length=chunksize)
+            table_slices.append(t)
+
+        # Process the batches as needed
+        version = []
+        for tab in table_slices:
+            logger.debug(f"Table Slice: {tab}")
+            feather_bytes = _table_slice_to_feather_bytes(table_slice=tab)
+            version.append(
+                self._btrdb.ep.arrowInsertValues(
+                    uu=self.uuid, values=feather_bytes, policy=merge
+                )
+            )
+        return max(version)
 
     def _update_tags_collection(self, tags, collection):
         tags = self.tags() if tags is None else tags
@@ -700,8 +728,7 @@ class Stream(object):
                 materialized.append((RawPoint.from_proto(point), version))
         return materialized
 
-
-    def arrow_values(self, start:int, end:int, version:int=0)->pa.Table:
+    def arrow_values(self, start: int, end: int, version: int = 0) -> pa.Table:
         """Read raw values from BTrDB between time [a, b) in nanoseconds.
 
         RawValues queries BTrDB for the raw time series data points between
@@ -790,7 +817,6 @@ class Stream(object):
         As the window-width is a power-of-two, it aligns with BTrDB internal
         tree data structure and is faster to execute than `windows()`.
         """
-        logger.debug(f"For stream - {self.uuid} -  {self.name}")
         materialized = []
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
@@ -802,7 +828,9 @@ class Stream(object):
                 materialized.append((StatPoint.from_proto(point), version))
         return tuple(materialized)
 
-    def arrow_aligned_windows(self, start: int, end: int, pointwidth: int, version: int = 0) -> pa.Table:
+    def arrow_aligned_windows(
+        self, start: int, end: int, pointwidth: int, version: int = 0
+    ) -> pa.Table:
         """Read statistical aggregates of windows of data from BTrDB.
 
         Query BTrDB for aggregates (or roll ups or windows) of the time series
@@ -843,7 +871,9 @@ class Stream(object):
         tree data structure and is faster to execute than `windows()`.
         """
         if not self._btrdb._ARROW_ENABLED:
-            raise NotImplementedError(_arrow_not_impl_str.format("arrow_aligned_windows"))
+            raise NotImplementedError(
+                _arrow_not_impl_str.format("arrow_aligned_windows")
+            )
 
         logger.debug(f"For stream - {self.uuid} -  {self.name}")
         start = to_nanoseconds(start)
@@ -859,12 +889,9 @@ class Stream(object):
         # ignore versions for now
         materialized_table = _materialize_stream_as_table(bytes_materialized)
         stream_names = [
-            "/".join([self.collection, self.name, prop])
-            for prop in _STAT_PROPERTIES
+            "/".join([self.collection, self.name, prop]) for prop in _STAT_PROPERTIES
         ]
-        return materialized_table.rename_columns(
-            ["time", *stream_names]
-        )
+        return materialized_table.rename_columns(["time", *stream_names])
 
     def windows(self, start, end, width, depth=0, version=0):
         """
@@ -909,16 +936,16 @@ class Stream(object):
         materialized = []
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
-        windows = self._btrdb.ep.windows(
-            self._uuid, start, end, width, depth, version
-        )
+        windows = self._btrdb.ep.windows(self._uuid, start, end, width, depth, version)
         for stat_points, version in windows:
             for point in stat_points:
                 materialized.append((StatPoint.from_proto(point), version))
 
         return tuple(materialized)
 
-    def arrow_windows(self, start: int, end: int, width:int, version: int = 0)-> pa.Table:
+    def arrow_windows(
+        self, start: int, end: int, width: int, version: int = 0
+    ) -> pa.Table:
         """Read arbitrarily-sized windows of data from BTrDB.
 
         Parameters
@@ -973,8 +1000,7 @@ class Stream(object):
         # ignore versions for now
         materialized = _materialize_stream_as_table(bytes_materialized)
         stream_names = [
-            "/".join([self.collection, self.name, prop])
-            for prop in _STAT_PROPERTIES
+            "/".join([self.collection, self.name, prop]) for prop in _STAT_PROPERTIES
         ]
         return materialized.rename_columns(["time", *stream_names])
 
@@ -1006,9 +1032,11 @@ class Stream(object):
 
         """
         try:
+            logger.debug(f"checking nearest for: {self.uuid}\t\t{time}\t\t{version}")
             rp, version = self._btrdb.ep.nearest(
                 self._uuid, to_nanoseconds(time), version, backward
             )
+            logger.debug(f"Nearest for stream: {self.uuid} - {rp}")
         except BTrDBError as exc:
             if not isinstance(exc, NoSuchPoint):
                 raise
@@ -1065,7 +1093,7 @@ class StreamSetBase(Sequence):
 
     @property
     def allow_window(self):
-        return bool(self.pointwidth or (self.width and self.depth == 0))
+        return not bool(self.pointwidth or (self.width and self.depth == 0))
 
     def _latest_versions(self):
         uuid_ver_tups = self._btrdb._executor.map(
@@ -1177,6 +1205,7 @@ class StreamSetBase(Sequence):
         params = self._params_from_filters()
         start = params.get("start", MINIMUM_TIME)
         versions = self.versions()
+        logger.debug(f"versions: {versions}")
         earliest_points_gen = self._btrdb._executor.map(
             lambda s: s.nearest(start, version=versions.get(s.uuid, 0), backward=False),
             self._streams,
@@ -1426,12 +1455,16 @@ class StreamSetBase(Sequence):
         available has been deprecated. The only valid value for depth is now 0.
 
         """
-        if self.allow_window:
+        if not self.allow_window:
             raise InvalidOperation("A window operation is already requested")
 
         # TODO: refactor keeping in mind how exception is raised
         self.width = int(width)
-        self.depth = int(depth)
+        if depth != 0:
+            warnings.warn(
+                f"The only valid value for `depth` is now 0. You provided: {depth}. Overriding this value to 0."
+            )
+        self.depth = 0
         return self
 
     def aligned_windows(self, pointwidth):
@@ -1492,14 +1525,6 @@ class StreamSetBase(Sequence):
                 self._streams,
             )
             data = list(aligned_windows_gen)
-            if self._btrdb._ARROW_ENABLED:
-                tablex = data.pop()
-                if data:
-                    for tab in data:
-                        tablex = tablex.join(tab, "time", join_type="full outer")
-                    data = tablex
-                else:
-                    data = tablex
 
         elif self.width is not None and self.depth is not None:
             # create list of stream.windows data (the windows method should
@@ -1510,14 +1535,6 @@ class StreamSetBase(Sequence):
                 self._streams,
             )
             data = list(windows_gen)
-            if self._btrdb._ARROW_ENABLED:
-                tablex = data.pop()
-                if data:
-                    for tab in data:
-                        tablex = tablex.join(tab, "time", join_type="full outer")
-                    data = tablex
-                else:
-                    data = tablex
 
         else:
             # create list of stream.values
@@ -1525,21 +1542,70 @@ class StreamSetBase(Sequence):
                 lambda s: s.values(**params), self._streams
             )
             data = list(values_gen)
-            if self._btrdb._ARROW_ENABLED:
-                tables = deque(data)
-                main_table = tables.popleft()
-                idx = 0
-                while len(tables) != 0:
-                    idx = idx + 1
-                    t2 = tables.popleft()
-                    main_table = main_table.join(
-                        t2, "time", join_type="full outer", right_suffix=f"_{idx}"
-                    )
-                return main_table
 
         if as_iterators:
             return [iter(ii) for ii in data]
 
+        return data
+
+    def _arrow_streamset_data(self):
+        params = self._params_from_filters()
+        versions = self.versions()
+
+        if self.pointwidth is not None:
+            # create list of stream.aligned_windows data
+            params.update({"pointwidth": self.pointwidth})
+            # need to update params based on version of stream, use dict merge
+            aligned_windows_gen = self._btrdb._executor.map(
+                lambda s: s.arrow_aligned_windows(
+                    **{**params, **{"version": versions[s.uuid]}}
+                ),
+                self._streams,
+            )
+            data = list(aligned_windows_gen)
+            tablex = data.pop()
+            if data:
+                for tab in data:
+                    tablex = tablex.join(tab, "time", join_type="full outer")
+                data = tablex
+            else:
+                data = tablex
+
+        elif self.width is not None and self.depth is not None:
+            # create list of stream.windows data (the windows method should
+            # prevent the possibility that only one of these is None)
+            params.update({"width": self.width, "depth": self.depth})
+            windows_gen = self._btrdb._executor.map(
+                lambda s: s.arrow_windows(
+                    **{**params, **{"version": versions[s.uuid]}}
+                ),
+                self._streams,
+            )
+            data = list(windows_gen)
+            tablex = data.pop()
+            if data:
+                for tab in data:
+                    tablex = tablex.join(tab, "time", join_type="full outer")
+                data = tablex
+            else:
+                data = tablex
+
+        else:
+            # create list of stream.values
+            values_gen = self._btrdb._executor.map(
+                lambda s: s.arrow_values(**params), self._streams
+            )
+            data = list(values_gen)
+            tables = deque(data)
+            main_table = tables.popleft()
+            idx = 0
+            while len(tables) != 0:
+                idx = idx + 1
+                t2 = tables.popleft()
+                main_table = main_table.join(
+                    t2, "time", join_type="full outer", right_suffix=f"_{idx}"
+                )
+            data = main_table
         return data
 
     def rows(self):
@@ -1607,12 +1673,13 @@ class StreamSetBase(Sequence):
         """
         result = []
         streamset_data = self._streamset_data()
-        if self._btrdb._ARROW_ENABLED:
-            return streamset_data
-        else:
-            for stream_data in streamset_data:
-                result.append([point[0] for point in stream_data])
-            return result
+        for stream_data in streamset_data:
+            result.append([point[0] for point in stream_data])
+        return result
+
+    def values_arrow(self):
+        streamset_data = self._arrow_streamset_data()
+        return streamset_data
 
     def __repr__(self):
         token = "stream" if len(self) == 1 else "streams"

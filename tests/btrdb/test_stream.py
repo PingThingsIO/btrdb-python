@@ -1453,7 +1453,7 @@ class TestStreamSet(object):
     ## windows tests
     ##########################################################################
 
-    def test_windows_raises_valueerror(self, stream1):
+    def test_windows_raises_valueerror_and_warning(self, stream1):
         """
         Assert that raises ValueError if arguments not castable to int
         """
@@ -1462,9 +1462,8 @@ class TestStreamSet(object):
             streams.windows("invalid", 42)
         assert "literal" in str(exc).lower()
 
-        with pytest.raises(ValueError) as exc:
+        with pytest.warns(Warning, match="Overriding") as exc:
             streams.windows(42, "invalid")
-        assert "literal" in str(exc).lower()
 
 
     def test_windows_raises_if_not_allowed(self, stream1):
@@ -1496,8 +1495,8 @@ class TestStreamSet(object):
         result = streams.windows(10, 20)
 
         # assert stores values
-        assert streams.width == 10
-        assert streams.depth == 20
+        assert result.width == 10
+        assert result.depth == 0
 
 
     def test_windows_values_and_calls_to_endpoint(self):
@@ -1522,8 +1521,8 @@ class TestStreamSet(object):
 
         # assert endpoint calls have correct arguments, version
         expected = [
-            call(uu1, start, end, width, depth, versions[uu1]),
-            call(uu2, start, end, width, depth, versions[uu2])
+            call(uu1, start, end, width, 0, versions[uu1]),
+            call(uu2, start, end, width, 0, versions[uu2])
         ]
         assert endpoint.windows.call_args_list == expected
 
@@ -1557,8 +1556,8 @@ class TestStreamSet(object):
 
         # assert endpoint calls have correct arguments, version
         expected = [
-            call(uu1, start, end, width, depth, versions[uu1]),
-            call(uu2, start, end, width, depth, versions[uu2])
+            call(uu1, start, end, width, 0, versions[uu1]),
+            call(uu2, start, end, width, 0, versions[uu2])
         ]
         assert endpoint.windows.call_args_list == expected
 
