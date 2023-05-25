@@ -503,6 +503,7 @@ class Stream(object):
         """
 
         chunksize = INSERT_BATCH_SIZE
+        assert isinstance(data, pa.Table)
         tmp_table = data.rename_columns(["time", "value"])
         logger.debug(f"tmp_table schema: {tmp_table.schema}")
         new_schema = pa.schema(
@@ -1096,7 +1097,7 @@ class StreamSetBase(Sequence):
         return not bool(self.pointwidth or (self.width and self.depth == 0))
 
     def _latest_versions(self):
-        uuid_ver_tups = self._btrdb._executor.map(
+        uuid_ver_tups = self._streams[0]._btrdb._executor.map(
             lambda s: (s.uuid, s.version()), self._streams
         )
         return {uu: v for uu, v in uuid_ver_tups}
@@ -1245,12 +1246,8 @@ class StreamSetBase(Sequence):
     def current(self):
         """
         Returns the points of data in the streams closest to the current timestamp. If
-        the current timestamp is outside of the filtered range of data, a ValueError is
+        the current timestamp is outside the filtered range of data, a ValueError is
         raised.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------
@@ -1550,6 +1547,7 @@ class StreamSetBase(Sequence):
 
     def _arrow_streamset_data(self):
         params = self._params_from_filters()
+        print(params)
         versions = self.versions()
 
         if self.pointwidth is not None:
@@ -1652,6 +1650,95 @@ class StreamSetBase(Sequence):
 
         return result
 
+    def arrow_rows(self):
+        """Return tuples of rows from arrow table"""
+        raise NotImplementedError(
+            f"arrow_rows has not been implemented yet, please use `rows` if you need this functionality."
+        )
+
+    def insert(self, data_map: dict, merge: str = "never") -> dict:
+        """Insert new data in the form (time, value) into their mapped streams.
+
+        The times in the dataframe need not be sorted by time. If the point counts are larger than
+        appropriate, this function will automatically chunk the inserts. As a
+        consequence, the insert is not necessarily atomic, but can be used with
+        a very large array.
+
+        Parameters
+        ----------
+        data_map: dict[uuid, pandas.DataFrame]
+            A dictionary mapping stream uuids to insert data into and their value as a
+            pandas dataframe containing two columns, one named "time" which contains int64 utc+0 timestamps
+            and a "value" column containing float64 measurements. These columns will be typecast into these types.
+        merge: str
+            A string describing the merge policy. Valid policies are:
+              - 'never': the default, no points are merged
+              - 'equal': points are deduplicated if the time and value are equal
+              - 'retain': if two points have the same timestamp, the old one is kept
+              - 'replace': if two points have the same timestamp, the new one is kept
+
+        Notes
+        -----
+        You MUST convert your datetimes into utc+0 yourself. BTrDB expects utc+0 datetimes.
+
+        Returns
+        -------
+        dict[uuid, int]
+            The versions of the stream after inserting new points.
+        """
+        filtered_data_map = {s.uuid: data_map[s.uuid] for s in self._streams}
+        for key, dat in filtered_data_map.items():
+            data_list = [
+                (times, vals)
+                for times, vals in zip(
+                    dat["time"].astype(int).values, dat["value"].astype(float).values
+                )
+            ]
+            filtered_data_map[key] = data_list
+        versions_gen = self._btrdb._executor.map(
+            lambda s: (s.uuid, s.insert(data=filtered_data_map[s.uuid], merge=merge)),
+            self._streams,
+        )
+        versions = {uu: ver for uu, ver in versions_gen}
+        return versions
+
+    def arrow_insert(self, data_map: dict, merge: str = 'never') -> dict:
+        """Insert new data in the form (time, value) into their mapped streams using pyarrow tables.
+
+        The times in the arrow table need not be sorted by time. If the point counts are larger than
+        appropriate, this function will automatically chunk the inserts. As a
+        consequence, the insert is not necessarily atomic, but can be used with
+        a very large array.
+
+        Parameters
+        ----------
+        data_map: dict[uuid, pyarrow.Table]
+            A dictionary keyed on stream uuids and mapped to pyarrow tables with a schema
+            of time:Timestamp[ns, tz=UTC], value:float64. This schema will be validated and converted if necessary.
+        merge: str
+            A string describing the merge policy. Valid policies are:
+              - 'never': the default, no points are merged
+              - 'equal': points are deduplicated if the time and value are equal
+              - 'retain': if two points have the same timestamp, the old one is kept
+              - 'replace': if two points have the same timestamp, the new one is kept
+
+        Notes
+        -----
+        BTrDB expects datetimes to be in UTC+0.
+
+        Returns
+        -------
+        dict[uuid, int]
+            The versions of the stream after inserting new points.
+        """
+        filtered_data_map = {s.uuid: data_map[s.uuid] for s in self._streams}
+        versions_gen = self._btrdb._executor.map(
+            lambda s: (s.uuid, s.arrow_insert(data=filtered_data_map[s.uuid], merge=merge)),
+            self._streams,
+        )
+        versions = {uu: ver for uu, ver in versions_gen}
+        return versions
+
     def _params_from_filters(self):
         params = {}
         for filter in self.filters:
@@ -1677,7 +1764,8 @@ class StreamSetBase(Sequence):
             result.append([point[0] for point in stream_data])
         return result
 
-    def values_arrow(self):
+    def arrow_values(self):
+        """Return a pyarrow table based on the streamset parameters."""
         streamset_data = self._arrow_streamset_data()
         return streamset_data
 
