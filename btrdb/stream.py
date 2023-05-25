@@ -53,6 +53,7 @@ try:
 except Exception:
     RE_PATTERN = re.Pattern
 
+_arrow_not_impl_str = "The BTrDB server you are using does not support {}."
 
 ##########################################################################
 ## Stream Classes
@@ -693,24 +694,58 @@ class Stream(object):
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
         logger.debug(f"For stream - {self.uuid} -  {self.name}")
-        if self._btrdb._ARROW_ENABLED:
-            arr_bytes = self._btrdb.ep.arrowRawValues(
-                uu=self.uuid, start=start, end=end, version=0
-            )
-            # exhausting the generator from above
-            bytes_materialized = list(arr_bytes)
-
-            logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
-            logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
-            # ignore versions for now
-            materialized_tables = _materialize_stream_as_table(bytes_materialized)
-            materialized = materialized_tables.rename_columns(["time", str(self.uuid)])
-        else:
-            point_windows = self._btrdb.ep.rawValues(self._uuid, start, end, version)
-            for point_list, version in point_windows:
-                for point in point_list:
-                    materialized.append((RawPoint.from_proto(point), version))
+        point_windows = self._btrdb.ep.rawValues(self._uuid, start, end, version)
+        for point_list, version in point_windows:
+            for point in point_list:
+                materialized.append((RawPoint.from_proto(point), version))
         return materialized
+
+
+    def arrow_values(self, start:int, end:int, version:int=0)->pa.Table:
+        """Read raw values from BTrDB between time [a, b) in nanoseconds.
+
+        RawValues queries BTrDB for the raw time series data points between
+        `start` and `end` time, both in nanoseconds since the Epoch for the
+        specified stream `version`.
+
+        start : int or datetime like object
+            The start time in nanoseconds for the range to be queried. (see
+            :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
+        end : int or datetime like object
+            The end time in nanoseconds for the range to be queried. (see
+            :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
+        version: int
+            The version of the stream to be queried
+
+        Returns
+        ------
+        pyarrow.Table
+            A pyarrow table of the raw values with time and value columns.
+
+
+        Notes
+        -----
+        Note that the raw data points are the original values at the sensor's
+        native sampling rate (assuming the time series represents measurements
+        from a sensor). This is the lowest level of data with the finest time
+        granularity. In the tree data structure of BTrDB, this data is stored in
+        the vector nodes.
+        """
+        if not self._btrdb._ARROW_ENABLED:
+            raise NotImplementedError(_arrow_not_impl_str.format("arrow_values"))
+        start = to_nanoseconds(start)
+        end = to_nanoseconds(end)
+        logger.debug(f"For stream - {self.uuid} -  {self.name}")
+        arr_bytes = self._btrdb.ep.arrowRawValues(
+            uu=self.uuid, start=start, end=end, version=version
+        )
+        # exhausting the generator from above
+        bytes_materialized = list(arr_bytes)
+
+        logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
+        logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
+        materialized_tables = _materialize_stream_as_table(bytes_materialized)
+        return materialized_tables.rename_columns(["time", str(self.uuid)])
 
     def aligned_windows(self, start, end, pointwidth, version=0):
         """
@@ -759,33 +794,77 @@ class Stream(object):
         materialized = []
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
-        if self._btrdb._ARROW_ENABLED:
-            arr_bytes = self._btrdb.ep.arrowAlignedWindows(
-                self.uuid, start=start, end=end, pointwidth=pointwidth, version=version
-            )
-            # exhausting the generator from above
-            bytes_materialized = list(arr_bytes)
+        windows = self._btrdb.ep.alignedWindows(
+            self._uuid, start, end, pointwidth, version
+        )
+        for stat_points, version in windows:
+            for point in stat_points:
+                materialized.append((StatPoint.from_proto(point), version))
+        return tuple(materialized)
 
-            logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
-            logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
-            # ignore versions for now
-            materialized_table = _materialize_stream_as_table(bytes_materialized)
-            stream_names = [
-                "/".join([self.collection, self.name, prop])
-                for prop in _STAT_PROPERTIES
-            ]
-            materialized_table = materialized_table.rename_columns(
-                ["time", *stream_names]
-            )
-            return materialized_table
-        else:
-            windows = self._btrdb.ep.alignedWindows(
-                self._uuid, start, end, pointwidth, version
-            )
-            for stat_points, version in windows:
-                for point in stat_points:
-                    materialized.append((StatPoint.from_proto(point), version))
-            return tuple(materialized)
+    def arrow_aligned_windows(self, start: int, end: int, pointwidth: int, version: int = 0) -> pa.Table:
+        """Read statistical aggregates of windows of data from BTrDB.
+
+        Query BTrDB for aggregates (or roll ups or windows) of the time series
+        with `version` between time `start` (inclusive) and `end` (exclusive) in
+        nanoseconds [start, end). Each point returned is a statistical aggregate of all the
+        raw data within a window of width 2**`pointwidth` nanoseconds. These
+        statistical aggregates currently include the mean, minimum, and maximum
+        of the data and the count of data points composing the window.
+
+        Note that `start` is inclusive, but `end` is exclusive. That is, results
+        will be returned for all windows that start in the interval [start, end).
+        If end < start+2^pointwidth you will not get any results. If start and
+        end are not powers of two, the bottom pointwidth bits will be cleared.
+        Each window will contain statistical summaries of the window.
+        Statistical points with count == 0 will be omitted.
+
+        Parameters
+        ----------
+        start : int or datetime like object
+            The start time in nanoseconds for the range to be queried. (see
+            :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
+        end : int or datetime like object
+            The end time in nanoseconds for the range to be queried. (see
+            :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
+        pointwidth : int
+            Specify the number of ns between data points (2**pointwidth)
+        version : int
+            Version of the stream to query
+
+        Returns
+        -------
+        pyarrow.Table
+            Returns a pyarrow table containing the windows of data.
+
+        Notes
+        -----
+        As the window-width is a power-of-two, it aligns with BTrDB internal
+        tree data structure and is faster to execute than `windows()`.
+        """
+        if not self._btrdb._ARROW_ENABLED:
+            raise NotImplementedError(_arrow_not_impl_str.format("arrow_aligned_windows"))
+
+        logger.debug(f"For stream - {self.uuid} -  {self.name}")
+        start = to_nanoseconds(start)
+        end = to_nanoseconds(end)
+        arr_bytes = self._btrdb.ep.arrowAlignedWindows(
+            self.uuid, start=start, end=end, pointwidth=pointwidth, version=version
+        )
+        # exhausting the generator from above
+        bytes_materialized = list(arr_bytes)
+
+        logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
+        logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
+        # ignore versions for now
+        materialized_table = _materialize_stream_as_table(bytes_materialized)
+        stream_names = [
+            "/".join([self.collection, self.name, prop])
+            for prop in _STAT_PROPERTIES
+        ]
+        return materialized_table.rename_columns(
+            ["time", *stream_names]
+        )
 
     def windows(self, start, end, width, depth=0, version=0):
         """
@@ -830,37 +909,74 @@ class Stream(object):
         materialized = []
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
-        if self._btrdb._ARROW_ENABLED:
-            arr_bytes = self._btrdb.ep.arrowWindows(
-                self.uuid,
-                start=start,
-                end=end,
-                width=width,
-                depth=depth,
-                version=version,
-            )
-            # exhausting the generator from above
-            bytes_materialized = list(arr_bytes)
+        windows = self._btrdb.ep.windows(
+            self._uuid, start, end, width, depth, version
+        )
+        for stat_points, version in windows:
+            for point in stat_points:
+                materialized.append((StatPoint.from_proto(point), version))
 
-            logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
-            logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
-            # ignore versions for now
-            materialized = _materialize_stream_as_table(bytes_materialized)
-            stream_names = [
-                "/".join([self.collection, self.name, prop])
-                for prop in _STAT_PROPERTIES
-            ]
-            materialized_table = materialized.rename_columns(["time", *stream_names])
-            return materialized_table
-        else:
-            windows = self._btrdb.ep.windows(
-                self._uuid, start, end, width, depth, version
-            )
-            for stat_points, version in windows:
-                for point in stat_points:
-                    materialized.append((StatPoint.from_proto(point), version))
+        return tuple(materialized)
 
-            return tuple(materialized)
+    def arrow_windows(self, start: int, end: int, width:int, version: int = 0)-> pa.Table:
+        """Read arbitrarily-sized windows of data from BTrDB.
+
+        Parameters
+        ----------
+        start : int or datetime like object, required
+            The start time in nanoseconds for the range to be queried. (see
+            :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
+        end : int or datetime like object, required
+            The end time in nanoseconds for the range to be queried. (see
+            :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
+        width : int, required
+            The number of nanoseconds in each window.
+        version : int, default=0, optional
+            The version of the stream to query.
+
+        Returns
+        -------
+        pyarrow.Table
+            Returns a pyarrow Table containing windows of data.
+
+        Notes
+        -----
+        Windows returns arbitrary precision windows from BTrDB. It is slower
+        than AlignedWindows, but still significantly faster than RawValues. Each
+        returned window will be `width` nanoseconds long. `start` is inclusive,
+        but `end` is exclusive (e.g if end < start+width you will get no
+        results). That is, results will be returned for all windows that start
+        at a time less than the end timestamp. If (`end` - `start`) is not a
+        multiple of width, then end will be decreased to the greatest value less
+        than end such that (end - start) is a multiple of `width` (i.e., we set
+        end = start + width * floordiv(end - start, width). The `depth`
+        parameter previously available has been deprecated. The only valid value
+        for depth is now 0.
+        """
+        if not self._btrdb._ARROW_ENABLED:
+            raise NotImplementedError(_arrow_not_impl_str.format("arrow_windows"))
+        start = to_nanoseconds(start)
+        end = to_nanoseconds(end)
+        arr_bytes = self._btrdb.ep.arrowWindows(
+            self.uuid,
+            start=start,
+            end=end,
+            width=width,
+            depth=0,
+            version=version,
+        )
+        # exhausting the generator from above
+        bytes_materialized = list(arr_bytes)
+
+        logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
+        logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
+        # ignore versions for now
+        materialized = _materialize_stream_as_table(bytes_materialized)
+        stream_names = [
+            "/".join([self.collection, self.name, prop])
+            for prop in _STAT_PROPERTIES
+        ]
+        return materialized.rename_columns(["time", *stream_names])
 
     def nearest(self, time, version, backward=False):
         """
