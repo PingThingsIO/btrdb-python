@@ -37,6 +37,7 @@ from btrdb.utils.general import unpack_stream_descriptor
 
 logger = logging.getLogger(__name__)
 
+
 class Endpoint(object):
     def __init__(self, channel):
         self.stub = btrdb_pb2_grpc.BTrDBStub(channel)
@@ -59,6 +60,17 @@ class Endpoint(object):
             check_proto_stat(result.stat)
             yield result.arrowBytes, result.versionMajor
 
+    def arrowMultiRawValues(self, uu_list, start, end, version=0):
+        params = btrdb_pb2.MultiRawValuesParams(
+            uuid=[uu.bytes for uu in uu_list],
+            start=start,
+            end=end,
+            versionMajor=version,
+        )
+        for result in self.stub.ArrowMultiRawValues(params):
+            check_proto_stat(result.stat)
+            yield result.arrowBytes, result.versionMajor
+
     @error_handler
     def arrowInsertValues(self, uu: uuid.UUID, values: bytearray, policy: str):
         policy_map = {
@@ -76,7 +88,6 @@ class Endpoint(object):
         result = self.stub.ArrowInsert(params)
         check_proto_stat(result.stat)
         return result.versionMajor
-
 
     @error_handler
     def alignedWindows(self, uu, start, end, pointwidth, version=0):
@@ -103,8 +114,6 @@ class Endpoint(object):
         for result in self.stub.ArrowAlignedWindows(params):
             check_proto_stat(result.stat)
             yield result.arrowBytes, result.versionMajor
-
-
 
     @error_handler
     def windows(self, uu, start, end, width, depth, version=0):
@@ -134,7 +143,6 @@ class Endpoint(object):
             check_proto_stat(result.stat)
             yield result.arrowBytes, result.versionMajor
 
-
     @error_handler
     def streamInfo(self, uu, omitDescriptor, omitVersion):
         params = btrdb_pb2.StreamInfoParams(
@@ -152,13 +160,11 @@ class Endpoint(object):
             result.versionMajor,
         )
 
-
     @error_handler
     def obliterate(self, uu):
         params = btrdb_pb2.ObliterateParams(uuid=uu.bytes)
         result = self.stub.Obliterate(params)
         check_proto_stat(result.stat)
-
 
     @error_handler
     def setStreamAnnotations(self, uu, expected, changes, removals):
@@ -217,7 +223,6 @@ class Endpoint(object):
         )
         result = self.stub.Create(params)
         check_proto_stat(result.stat)
-
 
     @error_handler
     def listCollections(self, prefix):
@@ -309,14 +314,12 @@ class Endpoint(object):
         check_proto_stat(result.stat)
         return result.versionMajor
 
-
     @error_handler
     def deleteRange(self, uu, start, end):
         params = btrdb_pb2.DeleteParams(uuid=uu.bytes, start=start, end=end)
         result = self.stub.Delete(params)
         check_proto_stat(result.stat)
         return result.versionMajor
-
 
     @error_handler
     def info(self):
@@ -337,7 +340,6 @@ class Endpoint(object):
         params = btrdb_pb2.FlushParams(uuid=uu.bytes)
         result = self.stub.Flush(params)
         check_proto_stat(result.stat)
-
 
     @error_handler
     def getMetadataUsage(self, prefix):
@@ -375,4 +377,3 @@ class Endpoint(object):
         for page in self.stub.SQLQuery(request):
             check_proto_stat(page.stat)
             yield page.SQLQueryRow
-

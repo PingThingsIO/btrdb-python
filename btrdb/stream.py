@@ -54,6 +54,7 @@ except Exception:
     RE_PATTERN = re.Pattern
 
 _arrow_not_impl_str = "The BTrDB server you are using does not support {}."
+_arrow_available_str = "Pyarrow and arrow table support is available for {}, you can access this method using {}."
 
 ##########################################################################
 ## Stream Classes
@@ -465,6 +466,8 @@ class Stream(object):
             The version of the stream after inserting new points.
 
         """
+        if self._btrdb._ARROW_ENABLED:
+            warnings.warn(_arrow_available_str.format("insert", "arrow_insert"))
         version = 0
         i = 0
         while i < len(data):
@@ -501,7 +504,8 @@ class Stream(object):
             The version of the stream after inserting new points.
 
         """
-
+        if not self._btrdb._ARROW_ENABLED:
+            raise NotImplementedError(_arrow_not_impl_str.format("arrow_insert"))
         chunksize = INSERT_BATCH_SIZE
         assert isinstance(data, pa.Table)
         tmp_table = data.rename_columns(["time", "value"])
@@ -719,6 +723,8 @@ class Stream(object):
         the vector nodes.
 
         """
+        if self._btrdb._ARROW_ENABLED:
+            warnings.warn(_arrow_available_str.format("values", "arrow_values"))
         materialized = []
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
@@ -818,6 +824,10 @@ class Stream(object):
         As the window-width is a power-of-two, it aligns with BTrDB internal
         tree data structure and is faster to execute than `windows()`.
         """
+        if self._btrdb._ARROW_ENABLED:
+            warnings.warn(
+                _arrow_available_str.format("aligned_windows", "arrow_aligned_windows")
+            )
         materialized = []
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
@@ -934,6 +944,8 @@ class Stream(object):
         for depth is now 0.
 
         """
+        if self._btrdb._ARROW_ENABLED:
+            warnings.warn(_arrow_available_str.format("windows", "arrow_windows"))
         materialized = []
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
@@ -1081,6 +1093,10 @@ class StreamSetBase(Sequence):
 
     def __init__(self, streams):
         self._streams = streams
+        if len(self._streams) < 1:
+            raise ValueError(
+                f"Trying to create streamset with an empty list of streams {self._streams}."
+            )
         try:
             self._btrdb = self._streams[0]._btrdb
         except Exception as e:
@@ -1545,15 +1561,40 @@ class StreamSetBase(Sequence):
 
         return data
 
+    def _arrow_multirawvalues(self):
+        params = self._params_from_filters()
+        # TODO need to support multiple versions for the streams I think
+        version = 0
+
+        if (self.pointwidth is not None) or (self.width is not None):
+            warnings.warn(
+                f"""Streamset has a defined pointwidth or windows width for statpoint queries.
+            This does not apply to the multirawvalues query, returning raw values."""
+            )
+        start = to_nanoseconds(params.get('start', None))
+        end = to_nanoseconds(params.get('end', None))
+        arr_bytes = self._btrdb.ep.arrowMultiRawValues(
+            uu_list=[s.uuid for s in self._streams], start=start, end=end, version=version
+        )
+        # exhausting the generator from above
+        bytes_materialized = list(arr_bytes)
+
+        logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
+        logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
+        materialized_tables = _materialize_stream_as_table(bytes_materialized)
+        return materialized_tables.rename_columns(["time", *[str(s.uuid) for s in self._streams]])
+
     def _arrow_streamset_data(self):
         params = self._params_from_filters()
-        print(params)
         versions = self.versions()
 
         if self.pointwidth is not None:
             # create list of stream.aligned_windows data
             params.update({"pointwidth": self.pointwidth})
             # need to update params based on version of stream, use dict merge
+            # {**dict1, **dict2} creates a new dict which updates the key/values if there are any
+            # same keys in dict1 and dict2, then the second dict in the expansion (dict2 in this case)
+            # will update the key (similar to dict1.update(dict2))
             aligned_windows_gen = self._btrdb._executor.map(
                 lambda s: s.arrow_aligned_windows(
                     **{**params, **{"version": versions[s.uuid]}}
@@ -1686,6 +1727,8 @@ class StreamSetBase(Sequence):
         dict[uuid, int]
             The versions of the stream after inserting new points.
         """
+        if self._btrdb._ARROW_ENABLED:
+            warnings.warn(_arrow_available_str.format("insert", "arrow_insert"))
         filtered_data_map = {s.uuid: data_map[s.uuid] for s in self._streams}
         for key, dat in filtered_data_map.items():
             data_list = [
@@ -1702,7 +1745,7 @@ class StreamSetBase(Sequence):
         versions = {uu: ver for uu, ver in versions_gen}
         return versions
 
-    def arrow_insert(self, data_map: dict, merge: str = 'never') -> dict:
+    def arrow_insert(self, data_map: dict, merge: str = "never") -> dict:
         """Insert new data in the form (time, value) into their mapped streams using pyarrow tables.
 
         The times in the arrow table need not be sorted by time. If the point counts are larger than
@@ -1733,7 +1776,10 @@ class StreamSetBase(Sequence):
         """
         filtered_data_map = {s.uuid: data_map[s.uuid] for s in self._streams}
         versions_gen = self._btrdb._executor.map(
-            lambda s: (s.uuid, s.arrow_insert(data=filtered_data_map[s.uuid], merge=merge)),
+            lambda s: (
+                s.uuid,
+                s.arrow_insert(data=filtered_data_map[s.uuid], merge=merge),
+            ),
             self._streams,
         )
         versions = {uu: ver for uu, ver in versions_gen}
@@ -1767,6 +1813,12 @@ class StreamSetBase(Sequence):
     def arrow_values(self):
         """Return a pyarrow table based on the streamset parameters."""
         streamset_data = self._arrow_streamset_data()
+        return streamset_data
+
+    def arrow_multirawvalues(self):
+        if not self._btrdb._ARROW_ENABLED:
+            raise NotImplementedError(_arrow_not_impl_str.format("arrow_multirawvalues"))
+        streamset_data = self._arrow_multirawvalues()
         return streamset_data
 
     def __repr__(self):

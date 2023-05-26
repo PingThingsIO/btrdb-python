@@ -24,6 +24,11 @@ class BTrDBStub(object):
                 request_serializer=btrdb__pb2.RawValuesParams.SerializeToString,
                 response_deserializer=btrdb__pb2.ArrowRawValuesResponse.FromString,
                 )
+        self.ArrowMultiRawValues = channel.unary_stream(
+                '/v5api.BTrDB/ArrowMultiRawValues',
+                request_serializer=btrdb__pb2.MultiRawValuesParams.SerializeToString,
+                response_deserializer=btrdb__pb2.ArrowMultiRawValuesResponse.FromString,
+                )
         self.AlignedWindows = channel.unary_stream(
                 '/v5api.BTrDB/AlignedWindows',
                 request_serializer=btrdb__pb2.AlignedWindowsParams.SerializeToString,
@@ -146,6 +151,12 @@ class BTrDBServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def ArrowRawValues(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ArrowMultiRawValues(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -298,6 +309,11 @@ def add_BTrDBServicer_to_server(servicer, server):
                     request_deserializer=btrdb__pb2.RawValuesParams.FromString,
                     response_serializer=btrdb__pb2.ArrowRawValuesResponse.SerializeToString,
             ),
+            'ArrowMultiRawValues': grpc.unary_stream_rpc_method_handler(
+                    servicer.ArrowMultiRawValues,
+                    request_deserializer=btrdb__pb2.MultiRawValuesParams.FromString,
+                    response_serializer=btrdb__pb2.ArrowMultiRawValuesResponse.SerializeToString,
+            ),
             'AlignedWindows': grpc.unary_stream_rpc_method_handler(
                     servicer.AlignedWindows,
                     request_deserializer=btrdb__pb2.AlignedWindowsParams.FromString,
@@ -449,6 +465,23 @@ class BTrDB(object):
         return grpc.experimental.unary_stream(request, target, '/v5api.BTrDB/ArrowRawValues',
             btrdb__pb2.RawValuesParams.SerializeToString,
             btrdb__pb2.ArrowRawValuesResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def ArrowMultiRawValues(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(request, target, '/v5api.BTrDB/ArrowMultiRawValues',
+            btrdb__pb2.MultiRawValuesParams.SerializeToString,
+            btrdb__pb2.ArrowMultiRawValuesResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 
