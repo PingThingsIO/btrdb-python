@@ -9,12 +9,14 @@ import pandas as pd
 import time
 
 COLLECTION="andy"
-N_STREAMS=1
-DURATION=1*24*60*60*(10**9)
+N_STREAMS=50
+DURATION=7*24*60*60*(10**9)
 
 def do_dask():
+    import btrdb
     #cluster = dask.distributed.LocalCluster()
     #client = dask.distributed.Client(cluster)
+    client = dask.distributed.Client("localhost:8786")
     btrdb.dask.configure_cluster()
     #print(client.dashboard_link)
     conn = btrdb.connect()
@@ -23,7 +25,7 @@ def do_dask():
     start = streams[0].earliest()[0].time
     end = start + DURATION
     df = btrdb.dask.multi_values(
-        streams, start, end
+        streams, start, end, partitions=3
     )
     delayed_npoints = dask.delayed(sum)([df[column].count() for column in df.columns])
     t1=time.time()
@@ -31,13 +33,14 @@ def do_dask():
     t2=time.time()
     elapsed=t2-t1
     print(f"dask: {npoints} in {elapsed} ({npoints/elapsed} PPS)")
+    #client.shutdown()
+    #cluster.close()
 
 def do_threaded():
     conn = btrdb.connect()
-    streams = btrdb.stream.StreamSet(
-        sorted(conn.streams_in_collection(COLLECTION), key=lambda s : s.name)
-    )
+    streams = sorted(conn.streams_in_collection(COLLECTION), key=lambda s : s.name)
     streams = streams[:N_STREAMS]
+    streams = btrdb.stream.StreamSet(streams)
     start = streams[0].earliest()[0].time
     end = start + DURATION
     streams = streams.filter(start=start, end=end)
@@ -73,6 +76,6 @@ def do_parload():
 
 
 if __name__ == '__main__':
-   do_parload()
-   do_threaded()
+   #do_parload()
+   #do_threaded()
    do_dask()
