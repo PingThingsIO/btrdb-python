@@ -1355,8 +1355,11 @@ class StreamSetBase(Sequence):
 
         obj = self.clone()
         if start is not None or end is not None or sampling_frequency is not None:
-            obj.filters.append(StreamFilter(start=start, end=end, sampling_frequency=sampling_frequency))
-
+            obj.filters.append(
+                StreamFilter(
+                    start=start, end=end, sampling_frequency=sampling_frequency
+                )
+            )
 
         # filter by collection
         if collection is not None:
@@ -1572,28 +1575,6 @@ class StreamSetBase(Sequence):
 
         return data
 
-    # def _arrow_multirawvalues(self):
-    #     params = self._params_from_filters()
-    #     version = 0
-    #
-    #     if (self.pointwidth is not None) or (self.width is not None):
-    #         warnings.warn(
-    #             f"""Streamset has a defined pointwidth or windows width for statpoint queries.
-    #         This does not apply to the multivalues query, returning joined values."""
-    #         )
-    #     start = to_nanoseconds(params.get('start', None))
-    #     end = to_nanoseconds(params.get('end', None))
-    #     arr_bytes = self._btrdb.ep.arrowMultiRawValues(
-    #         uu_list=[s.uuid for s in self._streams], start=start, end=end, version=version
-    #     )
-    #     # exhausting the generator from above
-    #     bytes_materialized = list(arr_bytes)
-    #
-    #     logger.debug(f"Length of materialized list: {len(bytes_materialized)}")
-    #     logger.debug(f"materialized bytes[0:1]: {bytes_materialized[0:1]}")
-    #     materialized_tables = _materialize_stream_as_table(bytes_materialized)
-    #     return materialized_tables.rename_columns(["time", *[str(s.uuid) for s in self._streams]])
-
     def _arrow_streamset_data(self):
         params = self._params_from_filters()
         versions = self.versions()
@@ -1642,11 +1623,14 @@ class StreamSetBase(Sequence):
         else:
             # determine if we are aligning data or not
             sampling_freq = params.get("sampling_frequency", 0)
-            if sampling_freq != 0:
+            if sampling_freq > 0:
                 # We are getting timesnapped data
-                values = self._arrow_multivalues(period_ns=_to_period_ns(sampling_freq))
+                data = self._arrow_multivalues(period_ns=_to_period_ns(sampling_freq))
+            elif sampling_freq == 0:
+                # outer-joined on time data
+                data = self._arrow_multivalues(period_ns=0)
             else:
-                # getting raw value data
+                # getting raw value data from each stream multithreaded
                 # create list of stream.values
                 values_gen = self._btrdb._executor.map(
                     lambda s: s.arrow_values(**params), self._streams
@@ -1831,32 +1815,20 @@ class StreamSetBase(Sequence):
             result.append([point[0] for point in stream_data])
         return result
 
-    def arrow_values(self, server_side_join: bool = False):
-        """Return a pyarrow table of stream values based on the streamset parameters.
-
-        Parameters
-        ----------
-        server_side_join : bool, optional, default = False
-            Set this to true if you want the raw data to be joined in time on the btrdb-server side instead of
-            using pyarrow to do this in python.
-        """
-        if server_side_join:
-            params = self._params_from_filters()
-            assert params["sampling_frequency"] == 0, f"Sampling frequency is {params['sampling_frequency']}, not 0, to perform a server side join of the raw data, you must set `streamset.filter(sampling_frequency=0)`."
-            period_ns = params["sampling_frequency"]
-            streamset_data = self._arrow_multivalues(period_ns=period_ns)
-        else:
-            streamset_data = self._arrow_streamset_data()
+    def arrow_values(self):
+        """Return a pyarrow table of stream values based on the streamset parameters."""
+        streamset_data = self._arrow_streamset_data()
         return streamset_data
 
-    def _arrow_multivalues(self, period_ns:int):
+    def _arrow_multivalues(self, period_ns: int):
         if not self._btrdb._ARROW_ENABLED:
-            raise NotImplementedError(_arrow_not_impl_str.format("arrow_multirawvalues"))
+            raise NotImplementedError(
+                _arrow_not_impl_str.format("arrow_multirawvalues")
+            )
         params = self._params_from_filters()
         versions = self.versions()
-        ver_list = [versions[s.uuid] for s in self._streams]
         params["uu_list"] = [s.uuid for s in self._streams]
-        params["versions"] = ver_list
+        params["versions"] = [versions[s.uuid] for s in self._streams]
         params["snap_periodNS"] = period_ns
         arr_bytes = self._btrdb.ep.arrowMultiValues(**params)
         # exhausting the generator from above
@@ -1911,10 +1883,14 @@ class StreamFilter(object):
     Object for storing requested filtering options
     """
 
-    def __init__(self, start:int=None, end:int=None, sampling_frequency:int=None):
+    def __init__(
+        self, start: int = None, end: int = None, sampling_frequency: int = None
+    ):
         self.start = to_nanoseconds(start) if start else None
         self.end = to_nanoseconds(end) if end else None
-        self.sampling_frequency = int(sampling_frequency) if sampling_frequency else None
+        self.sampling_frequency = (
+            int(sampling_frequency) if sampling_frequency else None
+        )
 
         if self.start is None and self.end is None:
             raise BTRDBValueError("A valid `start` or `end` must be supplied")
@@ -1923,11 +1899,12 @@ class StreamFilter(object):
             raise BTRDBValueError("`start` must be strictly less than `end` argument")
 
 
-def _to_period_ns(fs:int):
+def _to_period_ns(fs: int):
     """Convert sampling rate to sampling period in ns."""
-    period = 1/fs
+    period = 1 / fs
     period_ns = period * 1e9
     return int(period_ns)
+
 
 def _materialize_stream_as_table(arrow_bytes):
     table_list = []
