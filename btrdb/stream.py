@@ -1539,6 +1539,8 @@ class StreamSetBase(Sequence):
             Returns each single stream's data as an iterator.  Defaults to False.
         """
         params = self._params_from_filters()
+        # sampling freq not supported for non-arrow streamset ops
+        _ = params.pop("sampling_frequency", None)
         versions = self.versions()
 
         if self.pointwidth is not None:
@@ -1578,10 +1580,13 @@ class StreamSetBase(Sequence):
     def _arrow_streamset_data(self):
         params = self._params_from_filters()
         versions = self.versions()
+        if params.get("sampling_frequency", None) is None:
+            _ = params.pop("sampling_frequency", None)
 
         if self.pointwidth is not None:
             # create list of stream.aligned_windows data
             params.update({"pointwidth": self.pointwidth})
+            _ = params.pop("sampling_frequency", None)
             # need to update params based on version of stream, use dict merge
             # {**dict1, **dict2} creates a new dict which updates the key/values if there are any
             # same keys in dict1 and dict2, then the second dict in the expansion (dict2 in this case)
@@ -1604,6 +1609,7 @@ class StreamSetBase(Sequence):
         elif self.width is not None and self.depth is not None:
             # create list of stream.windows data (the windows method should
             # prevent the possibility that only one of these is None)
+            _ = params.pop("sampling_frequency", None)
             params.update({"width": self.width, "depth": self.depth})
             windows_gen = self._btrdb._executor.map(
                 lambda s: s.arrow_windows(
@@ -1622,7 +1628,7 @@ class StreamSetBase(Sequence):
 
         else:
             # determine if we are aligning data or not
-            sampling_freq = params.get("sampling_frequency", 0)
+            sampling_freq = params.get("sampling_frequency", None)
             if sampling_freq > 0:
                 # We are getting timesnapped data
                 data = self._arrow_multivalues(period_ns=_to_period_ns(sampling_freq))
@@ -1795,8 +1801,6 @@ class StreamSetBase(Sequence):
                 params["end"] = filter.end
             if filter.sampling_frequency is not None:
                 params["sampling_frequency"] = filter.sampling_frequency
-            else:
-                params["sampling_frequency"] = 0
         return params
 
     def values_iter(self):
