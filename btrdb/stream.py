@@ -1354,11 +1354,9 @@ class StreamSetBase(Sequence):
         """
 
         obj = self.clone()
-        if start is not None or end is not None:
-            obj.filters.append(StreamFilter(start, end))
+        if start is not None or end is not None or sampling_frequency is not None:
+            obj.filters.append(StreamFilter(start=start, end=end, sampling_frequency=sampling_frequency))
 
-        if sampling_frequency is not None:
-            obj.filters.append()
 
         # filter by collection
         if collection is not None:
