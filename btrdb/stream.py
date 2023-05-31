@@ -1448,7 +1448,7 @@ class StreamSetBase(Sequence):
                 setattr(clone, attr, deepcopy(val))
         return clone
 
-    def windows(self, width, depth):
+    def windows(self, width, depth=0):
         """
         Stores the request for a windowing operation when the query is
         eventually materialized.
@@ -1610,7 +1610,7 @@ class StreamSetBase(Sequence):
             # create list of stream.windows data (the windows method should
             # prevent the possibility that only one of these is None)
             _ = params.pop("sampling_frequency", None)
-            params.update({"width": self.width, "depth": self.depth})
+            params.update({"width": self.width})
             windows_gen = self._btrdb._executor.map(
                 lambda s: s.arrow_windows(
                     **{**params, **{"version": versions[s.uuid]}}
@@ -1629,6 +1629,8 @@ class StreamSetBase(Sequence):
         else:
             # determine if we are aligning data or not
             sampling_freq = params.get("sampling_frequency", None)
+            if sampling_freq is None:
+                sampling_freq = -1
             if sampling_freq > 0:
                 # We are getting timesnapped data
                 data = self._arrow_multivalues(period_ns=_to_period_ns(sampling_freq))

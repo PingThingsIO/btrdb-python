@@ -182,6 +182,7 @@ def arrow_to_dataframe(
     if not callable(name_callable):
         name_callable = lambda s: s.collection + "/" + s.name
     tmp_table = streamset.arrow_values()
+    my_cols = [c for c in tmp_table.column_names]
     col_names = _stream_names(streamset, name_callable)
     cols = []
     for name in col_names:
@@ -189,7 +190,7 @@ def arrow_to_dataframe(
             cols.append(name + "/" + prop)
     if agg == "all":
         tmp = tmp_table.select(["time", *cols])
-    elif streamset.allow_window:
+    elif not streamset.allow_window:
         usable_cols = [val for val in cols if agg in val]
         tmp = tmp_table.select(["time", *usable_cols])
     else:
@@ -307,7 +308,7 @@ def arrow_to_polars(streamset, agg="mean", name_callable=None):
     arrow_df = arrow_to_dataframe(
         streamset=streamset, agg=agg, name_callable=name_callable
     )
-    return pl.from_pandas(arrow_df)
+    return pl.from_pandas(arrow_df, include_index=True)
 
 
 def arrow_to_arrow_table(streamset):
