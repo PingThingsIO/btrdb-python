@@ -1239,6 +1239,7 @@ class TestStreamSet(object):
         uu1 = uuid.UUID("0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a")
         uu2 = uuid.UUID("4dadf38d-52a5-4b7a-ada9-a5d563f9538c")
         endpoint = Mock(Endpoint)
+        endpoint.streamInfo = Mock(return_value=[-1, -1, -1, -1, 0])
         windows = [
             [
                 (
