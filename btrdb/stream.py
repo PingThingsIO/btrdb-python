@@ -1169,7 +1169,7 @@ class StreamSetBase(Sequence):
             self._pinned_versions if self._pinned_versions else self._latest_versions()
         )
 
-    def count(self):
+    def count(self, precise:bool=False):
         """
         Compute the total number of points in the streams using filters.
 
@@ -1180,13 +1180,12 @@ class StreamSetBase(Sequence):
 
         Note that this helper method sums the counts of all StatPoints returned
         by ``aligned_windows``. Because of this the start and end timestamps
-        may be adjusted if they are not powers of 2. You can also set the
-        pointwidth property for smaller windows of time to ensure that the
-        count granularity is captured appropriately.
+        may be adjusted if they are not powers of 2.
 
         Parameters
         ----------
-        None
+        precise : bool, default = False
+            Use statpoint counts using aligned_windows which trades accuracy for speed.
 
         Returns
         -------
@@ -1196,10 +1195,10 @@ class StreamSetBase(Sequence):
         params = self._params_from_filters()
         start = params.get("start", MINIMUM_TIME)
         end = params.get("end", MAXIMUM_TIME)
-        versions = self._pinned_versions if self._pinned_versions else {}
+        versions = self._pinned_versions if self._pinned_versions else self._latest_versions()
 
         my_counts_gen = self._btrdb._executor.map(
-            lambda s: s.count(start, end, version=versions.get(s.uuid, 0)),
+            lambda s: s.count(start, end, version=versions.get(s.uuid, 0), precise=precise),
             self._streams,
         )
 
