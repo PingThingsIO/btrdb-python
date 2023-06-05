@@ -15,8 +15,8 @@ Value transformation utilities
 ## Imports
 ##########################################################################
 
-import csv
 import contextlib
+import csv
 from collections import OrderedDict
 from warnings import warn
 
@@ -24,11 +24,13 @@ from warnings import warn
 ## Helper Functions
 ##########################################################################
 
-_STAT_PROPERTIES = ('min', 'mean', 'max', 'count', 'stddev')
+_STAT_PROPERTIES = ("min", "mean", "max", "count", "stddev")
+
 
 def _get_time_from_row(row):
     for item in row:
-        if item: return item.time
+        if item:
+            return item.time
     raise Exception("Row contains no data")
 
 
@@ -38,14 +40,13 @@ def _stream_names(streamset, func):
     before sending a collection of streams (dataframe, etc.) back to the
     user.
     """
-    return tuple(
-        func(s) for s in streamset._streams
-    )
+    return tuple(func(s) for s in streamset._streams)
 
 
 ##########################################################################
 ## Transform Functions
 ##########################################################################
+
 
 def to_series(streamset, datetime64_index=True, agg="mean", name_callable=None):
     """
@@ -77,8 +78,7 @@ def to_series(streamset, datetime64_index=True, agg="mean", name_callable=None):
         raise AttributeError("cannot use 'all' as aggregate at this time")
 
     if not callable(name_callable):
-        name_callable = lambda s: s.collection + "/" +  s.name
-
+        name_callable = lambda s: s.collection + "/" + s.name
 
     result = []
     stream_names = _stream_names(streamset, name_callable)
@@ -93,11 +93,9 @@ def to_series(streamset, datetime64_index=True, agg="mean", name_callable=None):
                 values.append(getattr(point, agg))
 
         if datetime64_index:
-            times = pd.Index(times, dtype='datetime64[ns]')
+            times = pd.Index(times, dtype="datetime64[ns]")
 
-        result.append(pd.Series(
-            data=values, index=times, name=stream_names[idx]
-        ))
+        result.append(pd.Series(data=values, index=times, name=stream_names[idx]))
     return result
 
 
@@ -129,31 +127,40 @@ def to_dataframe(streamset, columns=None, agg="mean", name_callable=None):
 
     # deprecation warning added in v5.8
     if columns:
-        warn("the columns argument is deprecated and will be removed in a future release", DeprecationWarning, stacklevel=2)
+        warn(
+            "the columns argument is deprecated and will be removed in a future release",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     # TODO: allow this at some future point
     if agg == "all" and name_callable is not None:
-        raise AttributeError("cannot provide name_callable when using 'all' as aggregate at this time")
+        raise AttributeError(
+            "cannot provide name_callable when using 'all' as aggregate at this time"
+        )
 
     # do not allow agg="all" with RawPoints
     if agg == "all" and streamset.allow_window:
-        agg=""
+        agg = ""
 
     # default arg values
     if not callable(name_callable):
-        name_callable = lambda s: s.collection + "/" +  s.name
+        name_callable = lambda s: s.collection + "/" + s.name
 
-
-    df = pd.DataFrame(to_dict(streamset,agg=agg))
+    df = pd.DataFrame(to_dict(streamset, agg=agg))
 
     if not df.empty:
         df = df.set_index("time")
 
         if agg == "all" and not streamset.allow_window:
-            stream_names = [[s.collection, s.name, prop] for s in streamset._streams for prop in _STAT_PROPERTIES]
-            df.columns=pd.MultiIndex.from_tuples(stream_names)
+            stream_names = [
+                [s.collection, s.name, prop]
+                for s in streamset._streams
+                for prop in _STAT_PROPERTIES
+            ]
+            df.columns = pd.MultiIndex.from_tuples(stream_names)
         else:
-            df.columns =  columns if columns else _stream_names(streamset, name_callable)
+            df.columns = columns if columns else _stream_names(streamset, name_callable)
 
     return df
 
@@ -210,29 +217,35 @@ def to_dict(streamset, agg="mean", name_callable=None):
 
     """
     if not callable(name_callable):
-        name_callable = lambda s: s.collection + "/" +  s.name
+        name_callable = lambda s: s.collection + "/" + s.name
 
     data = []
     stream_names = _stream_names(streamset, name_callable)
 
     for row in streamset.rows():
-        item = OrderedDict({
-            "time": _get_time_from_row(row),
-        })
+        item = OrderedDict(
+            {
+                "time": _get_time_from_row(row),
+            }
+        )
         for idx, col in enumerate(stream_names):
             if row[idx].__class__.__name__ == "RawPoint":
                 item[col] = row[idx].value if row[idx] else None
             else:
                 if agg == "all":
                     for stat in _STAT_PROPERTIES:
-                        item["{}-{}".format(col, stat)] = getattr(row[idx], stat) if row[idx] else None
+                        item["{}-{}".format(col, stat)] = (
+                            getattr(row[idx], stat) if row[idx] else None
+                        )
                 else:
                     item[col] = getattr(row[idx], agg) if row[idx] else None
         data.append(item)
     return data
 
 
-def to_csv(streamset, fobj, dialect=None, fieldnames=None, agg="mean", name_callable=None):
+def to_csv(
+    streamset, fobj, dialect=None, fieldnames=None, agg="mean", name_callable=None
+):
     """
     Saves stream data as a CSV file.
 
@@ -264,12 +277,12 @@ def to_csv(streamset, fobj, dialect=None, fieldnames=None, agg="mean", name_call
         raise AttributeError("cannot use 'all' as aggregate at this time")
 
     if not callable(name_callable):
-        name_callable = lambda s: s.collection + "/" +  s.name
+        name_callable = lambda s: s.collection + "/" + s.name
 
     @contextlib.contextmanager
     def open_path_or_file(path_or_file):
         if isinstance(path_or_file, str):
-            f = file_to_close = open(path_or_file, 'w', newline='')
+            f = file_to_close = open(path_or_file, "w", newline="")
         else:
             f = path_or_file
             file_to_close = None
@@ -310,26 +323,32 @@ def to_table(streamset, agg="mean", name_callable=None):
     try:
         from tabulate import tabulate
     except ImportError:
-        raise ImportError("Please install tabulate to use this transformation function.")
+        raise ImportError(
+            "Please install tabulate to use this transformation function."
+        )
 
     # TODO: allow this at some future point
     if agg == "all":
         raise AttributeError("cannot use 'all' as aggregate at this time")
 
     if not callable(name_callable):
-        name_callable = lambda s: s.collection + "/" +  s.name
+        name_callable = lambda s: s.collection + "/" + s.name
 
-    return tabulate(streamset.to_dict(agg=agg, name_callable=name_callable), headers="keys")
+    return tabulate(
+        streamset.to_dict(agg=agg, name_callable=name_callable), headers="keys"
+    )
 
 
 ##########################################################################
 ## Transform Classes
 ##########################################################################
 
+
 class StreamSetTransformer(object):
     """
     Base class for StreamSet or Stream transformations
     """
+
     to_dict = to_dict
     to_array = to_array
     to_series = to_series

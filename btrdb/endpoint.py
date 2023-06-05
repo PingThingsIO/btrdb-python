@@ -25,10 +25,9 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from btrdb.grpcinterface import btrdb_pb2
-from btrdb.grpcinterface import btrdb_pb2_grpc
+from btrdb.exceptions import BTrDBError, check_proto_stat, error_handler
+from btrdb.grpcinterface import btrdb_pb2, btrdb_pb2_grpc
 from btrdb.point import RawPoint
-from btrdb.exceptions import BTrDBError, error_handler, check_proto_stat
 from btrdb.utils.general import unpack_stream_descriptor
 
 
@@ -81,7 +80,13 @@ class Endpoint(object):
         desc = result.descriptor
         check_proto_stat(result.stat)
         tagsanns = unpack_stream_descriptor(desc)
-        return desc.collection, desc.propertyVersion, tagsanns[0], tagsanns[1], result.versionMajor
+        return (
+            desc.collection,
+            desc.propertyVersion,
+            tagsanns[0],
+            tagsanns[1],
+            result.versionMajor,
+        )
 
     @error_handler
     def obliterate(self, uu):
@@ -135,11 +140,11 @@ class Endpoint(object):
     def create(self, uu, collection, tags, annotations):
         tagkvlist = []
         for k, v in tags.items():
-            kv = btrdb_pb2.KeyOptValue(key = k, val = btrdb_pb2.OptValue(value=v))
+            kv = btrdb_pb2.KeyOptValue(key=k, val=btrdb_pb2.OptValue(value=v))
             tagkvlist.append(kv)
         annkvlist = []
         for k, v in annotations.items():
-            kv = btrdb_pb2.KeyOptValue(key = k, val = btrdb_pb2.OptValue(value=v))
+            kv = btrdb_pb2.KeyOptValue(key=k, val=btrdb_pb2.OptValue(value=v))
             annkvlist.append(kv)
         params = btrdb_pb2.CreateParams(
             uuid=uu.bytes, collection=collection, tags=tagkvlist, annotations=annkvlist
@@ -201,7 +206,7 @@ class Endpoint(object):
         result = self.stub.Nearest(params)
         check_proto_stat(result.stat)
         return result.value, result.versionMajor
-    
+
     @error_handler
     def changes(self, uu, fromVersion, toVersion, resolution):
         params = btrdb_pb2.ChangesParams(
@@ -268,18 +273,24 @@ class Endpoint(object):
         return result.tags, result.annotations
 
     @error_handler
-    def generateCSV(self, queryType, start, end, width, depth, includeVersions, *streams):
-        protoStreams = [btrdb_pb2.StreamCSVConfig(version = stream[0],
-                        label = stream[1],
-                        uuid = stream[2].bytes)
-                        for stream in streams]
-        params = btrdb_pb2.GenerateCSVParams(queryType = queryType.to_proto(),
-                                            startTime = start,
-                                            endTime = end,
-                                            windowSize = width,
-                                            depth = depth,
-                                            includeVersions = includeVersions,
-                                            streams = protoStreams)
+    def generateCSV(
+        self, queryType, start, end, width, depth, includeVersions, *streams
+    ):
+        protoStreams = [
+            btrdb_pb2.StreamCSVConfig(
+                version=stream[0], label=stream[1], uuid=stream[2].bytes
+            )
+            for stream in streams
+        ]
+        params = btrdb_pb2.GenerateCSVParams(
+            queryType=queryType.to_proto(),
+            startTime=start,
+            endTime=end,
+            windowSize=width,
+            depth=depth,
+            includeVersions=includeVersions,
+            streams=protoStreams,
+        )
         for result in self.stub.GenerateCSV(params):
             check_proto_stat(result.stat)
             yield result.row
