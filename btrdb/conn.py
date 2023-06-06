@@ -19,6 +19,7 @@ import json
 import os
 import re
 import uuid as uuidlib
+from concurrent.futures import ThreadPoolExecutor
 
 import certifi
 import grpc
@@ -41,6 +42,7 @@ MAX_POINTWIDTH = 63
 ##########################################################################
 ## Classes
 ##########################################################################
+logger = logging.getLogger(__name__)
 
 
 class Connection(object):
@@ -111,6 +113,19 @@ class Connection(object):
                 )
             self.channel = grpc.insecure_channel(addrportstr, chan_ops)
 
+def _is_arrow_enabled(info):
+    info = {
+        "majorVersion": info.majorVersion,
+        "minorVersion": info.minorVersion,
+    }
+    major = info.get("majorVersion", -1)
+    minor = info.get("minorVersion", -1)
+    logger.debug(f"major version: {major}")
+    logger.debug(f"minor version: {minor}")
+    if major >= 5 and minor >= 30:
+        return True
+    else:
+        return False
 
 class BTrDB(object):
     """
@@ -119,6 +134,9 @@ class BTrDB(object):
 
     def __init__(self, endpoint):
         self.ep = endpoint
+        self._executor = ThreadPoolExecutor()
+        self._ARROW_ENABLED = True #_is_arrow_enabled(self.ep.info())
+        logger.debug(f"ARROW ENABLED: {self._ARROW_ENABLED}")
 
     def query(self, stmt, params=[]):
         """
@@ -285,6 +303,7 @@ class BTrDB(object):
         info = self.ep.info()
         return {
             "majorVersion": info.majorVersion,
+            "minorVersion": info.minorVersion,
             "build": info.build,
             "proxy": {"proxyEndpoints": [ep for ep in info.proxy.proxyEndpoints]},
         }

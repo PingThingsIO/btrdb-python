@@ -24,11 +24,17 @@
 # ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+import logging
+import uuid
+
+import grpc
 
 from btrdb.exceptions import BTrDBError, check_proto_stat, error_handler
 from btrdb.grpcinterface import btrdb_pb2, btrdb_pb2_grpc
 from btrdb.point import RawPoint
 from btrdb.utils.general import unpack_stream_descriptor
+
+logger = logging.getLogger(__name__)
 
 
 class Endpoint(object):
@@ -45,6 +51,45 @@ class Endpoint(object):
             yield result.values, result.versionMajor
 
     @error_handler
+    def arrowRawValues(self, uu, start, end, version=0):
+        params = btrdb_pb2.RawValuesParams(
+            uuid=uu.bytes, start=start, end=end, versionMajor=version
+        )
+        for result in self.stub.ArrowRawValues(params):
+            check_proto_stat(result.stat)
+            yield result.arrowBytes, result.versionMajor
+
+    def arrowMultiValues(self, uu_list, start, end, version_list, snap_periodNS):
+        params = btrdb_pb2.ArrowMultiValuesParams(
+            uuid=[uu.bytes for uu in uu_list],
+            start=start,
+            end=end,
+            versionMajor=[ver for ver in version_list],
+            snapPeriodNs=int(snap_periodNS)
+        )
+        for result in self.stub.ArrowMultiValues(params):
+            check_proto_stat(result.stat)
+            yield result.arrowBytes, result.versionMajor
+
+    @error_handler
+    def arrowInsertValues(self, uu: uuid.UUID, values: bytearray, policy: str):
+        policy_map = {
+            "never": btrdb_pb2.MergePolicy.NEVER,
+            "equal": btrdb_pb2.MergePolicy.EQUAL,
+            "retain": btrdb_pb2.MergePolicy.RETAIN,
+            "replace": btrdb_pb2.MergePolicy.REPLACE,
+        }
+        params = btrdb_pb2.ArrowInsertParams(
+            uuid=uu.bytes,
+            sync=False,
+            arrowBytes=values,
+            merge_policy=policy_map[policy],
+        )
+        result = self.stub.ArrowInsert(params)
+        check_proto_stat(result.stat)
+        return result.versionMajor
+
+    @error_handler
     def alignedWindows(self, uu, start, end, pointwidth, version=0):
         params = btrdb_pb2.AlignedWindowsParams(
             uuid=uu.bytes,
@@ -56,6 +101,19 @@ class Endpoint(object):
         for result in self.stub.AlignedWindows(params):
             check_proto_stat(result.stat)
             yield result.values, result.versionMajor
+
+    @error_handler
+    def arrowAlignedWindows(self, uu, start, end, pointwidth, version=0):
+        params = btrdb_pb2.AlignedWindowsParams(
+            uuid=uu.bytes,
+            start=start,
+            end=end,
+            versionMajor=version,
+            pointWidth=int(pointwidth),
+        )
+        for result in self.stub.ArrowAlignedWindows(params):
+            check_proto_stat(result.stat)
+            yield result.arrowBytes, result.versionMajor
 
     @error_handler
     def windows(self, uu, start, end, width, depth, version=0):
@@ -70,6 +128,20 @@ class Endpoint(object):
         for result in self.stub.Windows(params):
             check_proto_stat(result.stat)
             yield result.values, result.versionMajor
+
+    @error_handler
+    def arrowWindows(self, uu, start, end, width, depth, version=0):
+        params = btrdb_pb2.WindowsParams(
+            uuid=uu.bytes,
+            start=start,
+            end=end,
+            versionMajor=version,
+            width=width,
+            depth=depth,
+        )
+        for result in self.stub.ArrowWindows(params):
+            check_proto_stat(result.stat)
+            yield result.arrowBytes, result.versionMajor
 
     @error_handler
     def streamInfo(self, uu, omitDescriptor, omitVersion):
@@ -200,10 +272,14 @@ class Endpoint(object):
 
     @error_handler
     def nearest(self, uu, time, version, backward):
+        logger.debug(f"nearest function params: {uu}\t{time}\t{version}\t{backward}")
         params = btrdb_pb2.NearestParams(
             uuid=uu.bytes, time=time, versionMajor=version, backward=backward
         )
+        logger.debug(f"params from nearest: {params}")
+        logger.debug(f"uuid: {uu}")
         result = self.stub.Nearest(params)
+        logger.debug(f"nearest, results: {result}")
         check_proto_stat(result.stat)
         return result.value, result.versionMajor
 

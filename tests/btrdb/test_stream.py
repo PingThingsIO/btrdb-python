@@ -10,6 +10,7 @@
 """
 Testing package for the btrdb stream module
 """
+import concurrent.futures
 
 ##########################################################################
 ## Imports
@@ -34,6 +35,8 @@ from btrdb.exceptions import (
     InvalidOperation,
     NoSuchPoint,
     StreamNotFoundError,
+    InvalidCollection,
+    NoSuchPoint,
 )
 from btrdb.grpcinterface import btrdb_pb2
 from btrdb.point import RawPoint, StatPoint
@@ -60,6 +63,9 @@ def stream1():
     type(stream).name = PropertyMock(return_value="gala")
     stream.tags = Mock(return_value={"name": "gala", "unit": "volts"})
     stream.annotations = Mock(return_value=({"owner": "ABC", "color": "red"}, 11))
+    stream._btrdb = Mock()
+    stream._btrdb._executor = concurrent.futures.ThreadPoolExecutor()
+    stream._btrdb._ARROW_ENABLED = Mock(return_value=False)
     return stream
 
 
@@ -74,8 +80,26 @@ def stream2():
     type(stream).name = PropertyMock(return_value="blood")
     stream.tags = Mock(return_value={"name": "blood", "unit": "amps"})
     stream.annotations = Mock(return_value=({"owner": "ABC", "color": "orange"}, 22))
+    stream._btrdb = Mock()
+    stream._btrdb._executor = Mock()
+    stream._btrdb._ARROW_ENABLED = Mock(return_value=False)
     return stream
 
+@pytest.fixture
+def arrow_stream3():
+    uu = uuid.UUID("17dbe387-89ea-42b6-864b-f505cdb483f5")
+    stream = Mock(Stream)
+    stream.version = Mock(return_value=22)
+    stream.uuid = Mock(return_value=uu)
+    stream.nearest = Mock(return_value=(RawPoint(time=20, value=1), 22))
+    type(stream).collection = PropertyMock(return_value="fruits/orange")
+    type(stream).name = PropertyMock(return_value="blood")
+    stream.tags = Mock(return_value={"name": "blood", "unit": "amps"})
+    stream.annotations = Mock(return_value=({"owner": "ABC", "color": "orange"}, 22))
+    stream._btrdb = Mock()
+    stream._btrdb._executor = Mock()
+    stream._btrdb._ARROW_ENABLED = Mock(return_value=True)
+    return stream
 
 ##########################################################################
 ## Stream Tests
@@ -900,7 +924,16 @@ class TestStreamSet(object):
         """
         Assert we can create the object
         """
-        StreamSet([])
+        StreamSet([1])
+
+    @pytest.mark.parametrize(
+        "empty_container", [(tuple()), (dict()), (list()), (set())]
+    )
+    def test_create_error_with_no_objects(self, empty_container):
+        with pytest.raises(
+            ValueError, match="Trying to create streamset with an empty list of streams"
+        ):
+            StreamSet(empty_container)
 
     ##########################################################################
     ## builtin / magic methods tests
@@ -1158,11 +1191,10 @@ class TestStreamSet(object):
         Assert earliest returns correct time code
         """
         streams = StreamSet([stream1, stream2])
-        assert streams.latest() == (
+        assert streams.earliest() == (
             RawPoint(time=10, value=1),
             RawPoint(time=20, value=1),
         )
-
     def test_latest(self, stream1, stream2):
         """
         Assert latest returns correct time code
@@ -1209,6 +1241,7 @@ class TestStreamSet(object):
         uu1 = uuid.UUID("0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a")
         uu2 = uuid.UUID("4dadf38d-52a5-4b7a-ada9-a5d563f9538c")
         endpoint = Mock(Endpoint)
+        endpoint.streamInfo = Mock(return_value=[-1, -1, -1, -1, 0])
         windows = [
             [
                 (
@@ -1452,7 +1485,7 @@ class TestStreamSet(object):
     ## windows tests
     ##########################################################################
 
-    def test_windows_raises_valueerror(self, stream1):
+    def test_windows_raises_valueerror_and_warning(self, stream1):
         """
         Assert that raises ValueError if arguments not castable to int
         """
@@ -1461,9 +1494,8 @@ class TestStreamSet(object):
             streams.windows("invalid", 42)
         assert "literal" in str(exc).lower()
 
-        with pytest.raises(ValueError) as exc:
+        with pytest.warns(Warning, match="Overriding") as exc:
             streams.windows(42, "invalid")
-        assert "literal" in str(exc).lower()
 
     def test_windows_raises_if_not_allowed(self, stream1):
         """
@@ -1492,8 +1524,8 @@ class TestStreamSet(object):
         result = streams.windows(10, 20)
 
         # assert stores values
-        assert streams.width == 10
-        assert streams.depth == 20
+        assert result.width == 10
+        assert result.depth == 0
 
     def test_windows_values_and_calls_to_endpoint(self):
         """
@@ -1525,8 +1557,8 @@ class TestStreamSet(object):
 
         # assert endpoint calls have correct arguments, version
         expected = [
-            call(uu1, start, end, width, depth, versions[uu1]),
-            call(uu2, start, end, width, depth, versions[uu2]),
+            call(uu1, start, end, width, 0, versions[uu1]),
+            call(uu2, start, end, width, 0, versions[uu2]),
         ]
         assert endpoint.windows.call_args_list == expected
 
@@ -1567,8 +1599,8 @@ class TestStreamSet(object):
 
         # assert endpoint calls have correct arguments, version
         expected = [
-            call(uu1, start, end, width, depth, versions[uu1]),
-            call(uu2, start, end, width, depth, versions[uu2]),
+            call(uu1, start, end, width, 0, versions[uu1]),
+            call(uu2, start, end, width, 0, versions[uu2]),
         ]
         assert endpoint.windows.call_args_list == expected
 
