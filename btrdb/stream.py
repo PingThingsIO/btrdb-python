@@ -1114,7 +1114,7 @@ class StreamSetBase(Sequence):
         return not bool(self.pointwidth or (self.width and self.depth == 0))
 
     def _latest_versions(self):
-        uuid_ver_tups = self._streams[0]._btrdb._executor.map(
+        uuid_ver_tups = self._btrdb._executor.map(
             lambda s: (s.uuid, s.version()), self._streams
         )
         return {uu: v for uu, v in uuid_ver_tups}
@@ -1195,6 +1195,7 @@ class StreamSetBase(Sequence):
         params = self._params_from_filters()
         start = params.get("start", MINIMUM_TIME)
         end = params.get("end", MAXIMUM_TIME)
+
         versions = self._pinned_versions if self._pinned_versions else self._latest_versions()
 
         my_counts_gen = self._btrdb._executor.map(

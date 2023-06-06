@@ -45,6 +45,7 @@ MAX_POINTWIDTH = 63
 ##########################################################################
 logger = logging.getLogger(__name__)
 
+
 class Connection(object):
     def __init__(self, addrportstr, apikey=None):
         """

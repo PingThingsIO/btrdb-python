@@ -1192,7 +1192,6 @@ class TestStreamSet(object):
             RawPoint(time=10, value=1),
             RawPoint(time=20, value=1),
         )
-
     def test_latest(self, stream1, stream2):
         """
         Assert latest returns correct time code
