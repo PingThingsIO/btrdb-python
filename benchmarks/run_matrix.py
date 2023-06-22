@@ -1,4 +1,6 @@
+import collections
 import time
+import typing
 import uuid
 from multiprocessing import Manager, Pool
 
@@ -30,6 +32,7 @@ from utils.benchmark_streamset_reads import (
 from utils.data_create import get_end_from_start_time_npoints, make_data
 
 import btrdb
+from btrdb.exceptions import BTrDBError
 
 func_list = [
     time_streamset_arrow_windows_values,
@@ -259,66 +262,109 @@ def bench_streamset_reads(
     df = get_matrix_df(matrix_filename)
     ins_df, raw_df, win_df, align_df = _process_df(df)
     conn = btrdb.connect(**conn_params)
-    res_list = []
     start_time = btrdb.utils.timez.to_nanoseconds(start_time)
+    res_list = []
+    for i, row in enumerate(raw_df.itertuples()):
+        retries_available = 3
+        while retries_available > 0:
+            try:
+                end_time = get_end_from_start_time_npoints(
+                    start=start_time, n_points=row.n_points, freq=sampling_freq
+                )
+                my_streams = btrdb.stream.StreamSet(
+                    conn.streams_in_collection(collection)[0 : row.n_streams]
+                )
+                res = func_dict.get(row.func_name, KeyError)(
+                    my_streams, start_time, end_time, 0
+                )
+                tmp = row._asdict()
+                tmp.update(res)
+                res_list.append(tmp)
+                print(tmp)
+                break
+            except BTrDBError as err:
+                conn = btrdb.connect(**conn_params)
+                retries_available -= 1
+                print(f"BTrDB Error: {err}, retrying")
+    print("done with single stream raw values")
+    pd.DataFrame(res_list).to_csv("streamset_raw_val.csv", mode="a", header=False)
+    res_list = []
     for row in win_df.itertuples():
-        my_streams = btrdb.stream.StreamSet(
-            conn.streams_in_collection(collection)[0 : row.n_streams]
-        )
-        end_time = get_end_from_start_time_npoints(
-            start=start_time, n_points=row.n_points, freq=sampling_freq
-        )
-        res = func_dict.get(row.func_name, KeyError)(
-            my_streams, start_time, end_time, row.width_ns, 0
-        )
-        tmp = row._asdict()
-        tmp.update(res)
-        res_list.append(tmp)
+        retries_available = 3
+        while retries_available > 0:
+            try:
+                end_time = get_end_from_start_time_npoints(
+                    start=start_time, n_points=row.n_points, freq=sampling_freq
+                )
+                my_streams = btrdb.stream.StreamSet(
+                    conn.streams_in_collection(collection)[0 : row.n_streams]
+                )
+                res = func_dict.get(row.func_name, KeyError)(
+                    my_streams, start_time, end_time, row.width_ns, 0
+                )
+                tmp = row._asdict()
+                tmp.update(res)
+                res_list.append(tmp)
+                print(tmp)
+                break
+            except BTrDBError as err:
+                conn = btrdb.connect(**conn_params)
+                retries_available -= 1
+                print(f"BTrDB Error: {err}, retrying")
     print("done with streamset windows")
     pd.DataFrame(res_list).to_csv("streamset_windows.csv")
-    # res_list = []
-    # for row in align_df.itertuples():
-    #     end_time = get_end_from_start_time_npoints(start=start_time, n_points=row.n_points, freq=sampling_freq)
-    #     res = func_dict.get(row.func_name,KeyError)(my_stream, start_time, end_time, row.pw, 0)
-    #     tmp = row._asdict()
-    #     tmp.update(res)
-    #     res_list.append(tmp)
-    # print("done with single stream aligned windows")
-    # pd.DataFrame(res_list).to_csv('streamset_aligned_windows.csv')
-    # res_list = []
-    # for row in raw_df.itertuples():
-    #     end_time = get_end_from_start_time_npoints(start=start_time, n_points=row.n_points, freq=sampling_freq)
-    #     res = func_dict.get(row.func_name,KeyError)(my_stream, start_time, end_time, 0)
-    #     tmp = row._asdict()
-    #     tmp.update(res)
-    #     res_list.append(tmp)
-    # print("done with single stream raw values")
-    # pd.DataFrame(res_list).to_csv('streamset_raw_val.csv')
+    res_list = []
+    for row in align_df.itertuples():
+        retries_available = 3
+        while retries_available > 0:
+            try:
+                end_time = get_end_from_start_time_npoints(
+                    start=start_time, n_points=row.n_points, freq=sampling_freq
+                )
+                my_streams = btrdb.stream.StreamSet(
+                    conn.streams_in_collection(collection)[0 : row.n_streams]
+                )
+                res = func_dict.get(row.func_name, KeyError)(
+                    my_streams, start_time, end_time, row.pw, 0
+                )
+                tmp = row._asdict()
+                tmp.update(res)
+                res_list.append(tmp)
+                print(tmp)
+                break
+            except BTrDBError as err:
+                conn = btrdb.connect(**conn_params)
+                retries_available -= 1
+                print(f"BTrDB Error: {err}, retrying")
+    print("done with streamset aligned windows")
+    pd.DataFrame(res_list).to_csv("streamset_aligned_windows.csv")
 
 
 def main():
     conn_params = {"profile": "andy"}
-    coll = "jbg_bench_read"
+    read_coll = "jbg_bench_read"
     name_prefix = "foo"
     n_points = 10000000
     n_streams = 100
-    # read_fn = "single_stream_bench_list.json"
-    read_fn = "streamset_bench_list.json"
+    stream_read_fn = "single_stream_bench_list.json"
+    streamset_read_fn = "streamset_bench_list.json"
     start_time = "2023-01-01"
-    # bench_single_stream_reads(
-    #     matrix_filename=read_fn,
-    #     collection=coll,
-    #     start_time=start_time,
-    #     conn_params=conn_params,
-    #     sampling_freq=1,
-    # )
-    bench_streamset_reads(
-        matrix_filename=read_fn,
-        collection=coll,
+    bench_single_stream_reads(
+        matrix_filename=stream_read_fn,
+        collection=read_coll,
         start_time=start_time,
         conn_params=conn_params,
         sampling_freq=1,
     )
+    print("Single stream benchmarks done")
+    bench_streamset_reads(
+        matrix_filename=streamset_read_fn,
+        collection=read_coll,
+        start_time=start_time,
+        conn_params=conn_params,
+        sampling_freq=1,
+    )
+    print("Streamset benchmarks done")
     # THIS OPERATION TAKES A WHILE, Creating 1B points, which is 1B * 16bytes ~ 16GB of data to create and then insert
     # ONLY UNCOMMENT IF YOUR MACHINE CAN HANDLE CREATING THIS MUCH DATA
     # setup_read_streams(coll=coll, n_streams=n_streams, n_points=n_points, conn_params=conn_params, n_proc=4)
