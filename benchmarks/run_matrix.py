@@ -347,7 +347,7 @@ def main():
     n_points = 10000000
     n_streams = 100
     stream_read_fn = "single_stream_bench_list.json"
-    streamset_read_fn = "streamset_bench_list.json"
+    streamset_read_fn = "streamset_bench_list_modified.json"
     start_time = "2023-01-01"
     bench_single_stream_reads(
         matrix_filename=stream_read_fn,

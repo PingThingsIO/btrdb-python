@@ -129,6 +129,9 @@ def make_streamset_benchmark_matrix(
         pws,
     ):
         # print(num_points, my_func.__name__, num_repeat)
+        if num_points > 1_000_000:
+            if "arrow" not in my_func.__name__:
+                continue
         tmp = _create_param_dict(
             num_points, my_func, num_repeat, width_ns, pw, num_streams
         )
@@ -148,7 +151,7 @@ def main():
     ]
     aligned_window_pw = [36, 38]  # 1.15min, 4.58min
     stream_fn = "single_stream_bench_list.json"
-    streamset_fn = "streamset_bench_list.json"
+    streamset_fn = "streamset_bench_list_modified.json"
     make_single_stream_benchmark_matrix(
         filename=stream_fn,
         pts=n_points,
