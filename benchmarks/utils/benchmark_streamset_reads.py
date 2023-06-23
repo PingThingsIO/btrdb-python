@@ -4,6 +4,7 @@ from time import perf_counter
 from typing import Dict, Union
 
 import pandas
+import pyarrow as pa
 
 import btrdb
 
@@ -37,14 +38,14 @@ def time_streamset_raw_values(
     versions = {s.uuid: 0 for s in streamset}
     streamset.pin_versions(versions)
     # minus 1 * n_streams to account for the exclusive end time
-    expected_count = streamset.count(precise=True) - len(streamset)
+    expected_count = streamset.count(precise=True)
     tic = perf_counter()
     vals = streamset.values()
     toc = perf_counter()
     # print(vals)
     queried_points = 0
     for points in vals:
-        print(len(points))
+        # print(len(points))
         queried_points += len(points)
     expected_count = streamset.count(precise=True)
     print(queried_points)
@@ -87,12 +88,15 @@ def time_streamset_arrow_raw_values(
     versions = {s.uuid: 0 for s in streamset}
     streamset.pin_versions(versions)
     # minus 1 * n_streams to account for the exclusive end time
-    expected_count = streamset.count(precise=True) - len(streamset)
+    expected_count = streamset.count(precise=True)
     tic = perf_counter()
     vals = streamset.arrow_values()
     toc = perf_counter()
-    # TODO: These point counts and assertion needs to be column specific
-    queried_points = len(streamset) * (vals.num_rows - 1)
+    queried_points = 0
+    for col_name, col in zip(vals.column_names, vals.columns):
+        if col_name == "time":
+            continue
+        queried_points += pa.compute.count(col).as_py()
     print(queried_points)
     print(expected_count)
     assert queried_points == expected_count
@@ -188,7 +192,11 @@ def time_streamset_arrow_windows_values(
     vals = streamset.arrow_values()
     toc = perf_counter()
     # num of statpoints
-    queried_points = vals.num_rows * len(streamset)
+    queried_points = 0
+    for col_name, col in zip(vals.column_names, vals.columns):
+        if col_name == "time":
+            continue
+        queried_points += pa.compute.count(col).as_py()
     assert queried_points != 0
     # time in seconds to run
     run_time = toc - tic
@@ -278,7 +286,11 @@ def time_streamset_arrow_aligned_windows_values(
     vals = streamset.arrow_values()
     toc = perf_counter()
     # num of statpoints
-    queried_points = vals.num_rows * len(streamset)
+    queried_points = 0
+    for col_name, col in zip(vals.column_names, vals.columns):
+        if col_name == "time":
+            continue
+        queried_points += pa.compute.count(col).as_py()
     assert queried_points != 0
     # time in seconds to run
     run_time = toc - tic
@@ -323,7 +335,12 @@ def time_streamset_arrow_multistream_raw_values_non_timesnapped(
     tic = perf_counter()
     vals = streamset.arrow_values()
     toc = perf_counter()
-    queried_points = vals.num_rows * len(streamset)
+    queried_points = 0
+    for col_name, col in zip(vals.column_names, vals.columns):
+        if col_name == "time":
+            continue
+        queried_points += pa.compute.count(col).as_py()
+    assert queried_points != 0
     #    print(vals)
     #    print(vals.to_pandas().describe())
     run_time = toc - tic
@@ -365,7 +382,12 @@ def time_streamset_arrow_multistream_raw_values_timesnapped(
     tic = perf_counter()
     vals = streamset.arrow_values()
     toc = perf_counter()
-    queried_points = vals.num_rows * len(streamset)
+    queried_points = 0
+    for col_name, col in zip(vals.column_names, vals.columns):
+        if col_name == "time":
+            continue
+        queried_points += pa.compute.count(col).as_py()
+    assert queried_points != 0
     #    print(vals)
     run_time = toc - tic
     results = _create_streamset_result_dict(
