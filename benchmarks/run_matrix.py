@@ -209,8 +209,8 @@ def bench_single_stream_reads(
         tmp = row._asdict()
         tmp.update(res)
         res_list.append(tmp)
+        pd.DataFrame(res_list).to_csv("single_stream_windows.csv")
     print("done with single stream windows")
-    pd.DataFrame(res_list).to_csv("single_stream_windows.csv")
     res_list = []
     for row in align_df.itertuples():
         end_time = get_end_from_start_time_npoints(
@@ -222,8 +222,8 @@ def bench_single_stream_reads(
         tmp = row._asdict()
         tmp.update(res)
         res_list.append(tmp)
+        pd.DataFrame(res_list).to_csv("single_stream_aligned_windows.csv")
     print("done with single stream aligned windows")
-    pd.DataFrame(res_list).to_csv("single_stream_aligned_windows.csv")
     res_list = []
     for row in raw_df.itertuples():
         end_time = get_end_from_start_time_npoints(
@@ -233,8 +233,8 @@ def bench_single_stream_reads(
         tmp = row._asdict()
         tmp.update(res)
         res_list.append(tmp)
+        pd.DataFrame(res_list).to_csv("single_stream_raw_val.csv")
     print("done with single stream raw values")
-    pd.DataFrame(res_list).to_csv("single_stream_raw_val.csv")
 
 
 def bench_streamset_reads(
@@ -286,8 +286,8 @@ def bench_streamset_reads(
                 conn = btrdb.connect(**conn_params)
                 retries_available -= 1
                 print(f"BTrDB Error: {err}, retrying")
+        pd.DataFrame(res_list).to_csv("streamset_raw_val.csv", mode="a", header=False)
     print("done with single stream raw values")
-    pd.DataFrame(res_list).to_csv("streamset_raw_val.csv", mode="a", header=False)
     res_list = []
     for row in win_df.itertuples():
         retries_available = 3
@@ -311,8 +311,8 @@ def bench_streamset_reads(
                 conn = btrdb.connect(**conn_params)
                 retries_available -= 1
                 print(f"BTrDB Error: {err}, retrying")
+        pd.DataFrame(res_list).to_csv("streamset_windows.csv")
     print("done with streamset windows")
-    pd.DataFrame(res_list).to_csv("streamset_windows.csv")
     res_list = []
     for row in align_df.itertuples():
         retries_available = 3
@@ -336,8 +336,8 @@ def bench_streamset_reads(
                 conn = btrdb.connect(**conn_params)
                 retries_available -= 1
                 print(f"BTrDB Error: {err}, retrying")
+        pd.DataFrame(res_list).to_csv("streamset_aligned_windows.csv")
     print("done with streamset aligned windows")
-    pd.DataFrame(res_list).to_csv("streamset_aligned_windows.csv")
 
 
 def main():
