@@ -26,6 +26,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import io
 import uuid
+
 import grpc
 
 from btrdb.exceptions import BTrDBError, check_proto_stat, error_handler
@@ -35,8 +36,9 @@ from btrdb.utils.general import unpack_stream_descriptor
 
 try:
     import pyarrow as pa
-except:
+except ImportError:
     pa = None
+
 
 class Endpoint(object):
     """Server endpoint where we make specific requests."""
@@ -154,7 +156,6 @@ class Endpoint(object):
             check_proto_stat(result.stat)
             with pa.ipc.open_stream(result.arrowBytes) as reader:
                 yield reader.read_all(), result.versionMajor
-
 
     @error_handler
     def streamInfo(self, uu, omitDescriptor, omitVersion):
