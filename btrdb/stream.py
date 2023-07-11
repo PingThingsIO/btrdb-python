@@ -762,9 +762,10 @@ class Stream(object):
         arrow_and_versions = self._btrdb.ep.arrowRawValues(
             uu=self.uuid, start=start, end=end, version=version
         )
-        tables = [arrow for (arrow, _) in arrow_and_versions]
+        tables = list(arrow_and_versions)
         if len(tables) > 0:
-            return pa.concat_tables(tables)
+            tabs, ver = zip(*tables)
+            return pa.concat_tables(tabs)
         else:
             schema = pa.schema(
                 [
@@ -885,7 +886,8 @@ class Stream(object):
             )
         )
         if len(tables) > 0:
-            return pa.concat_tables(tables)
+            tabs, ver = zip(*tables)
+            return pa.concat_tables(tabs)
         else:
             schema = pa.schema(
                 [
@@ -1001,7 +1003,8 @@ class Stream(object):
             )
         )
         if len(tables) > 0:
-            return pa.concat_tables(tables)
+            tabs, ver = zip(*tables)
+            return pa.concat_tables(tabs)
         else:
             schema = pa.schema(
                 [
@@ -1766,10 +1769,20 @@ class StreamSetBase(Sequence):
                 ),
                 self._streams,
             )
+            stream_uus = [str(s.uuid) for s in self._streams]
             data = list(aligned_windows_gen)
             tablex = data.pop()
+            uu = stream_uus.pop()
+            tab_columns = [
+                c if c == "time" else uu + "/" + c for c in tablex.column_names
+            ]
+            tablex = tablex.rename_columns(tab_columns)
             if data:
-                for tab in data:
+                for tab, uu in zip(data, stream_uus):
+                    tab_columns = [
+                        c if c == "time" else uu + "/" + c for c in tab.column_names
+                    ]
+                    tab = tab.rename_columns(tab_columns)
                     tablex = tablex.join(tab, "time", join_type="full outer")
                 data = tablex
             else:
@@ -1786,10 +1799,20 @@ class StreamSetBase(Sequence):
                 ),
                 self._streams,
             )
+            stream_uus = [str(s.uuid) for s in self._streams]
             data = list(windows_gen)
             tablex = data.pop()
+            uu = stream_uus.pop()
+            tab_columns = [
+                c if c == "time" else uu + "/" + c for c in tablex.column_names
+            ]
+            tablex = tablex.rename_columns(tab_columns)
             if data:
-                for tab in data:
+                for tab, uu in zip(data, stream_uus):
+                    tab_columns = [
+                        c if c == "time" else uu + "/" + c for c in tab.column_names
+                    ]
+                    tab = tab.rename_columns(tab_columns)
                     tablex = tablex.join(tab, "time", join_type="full outer")
                 data = tablex
             else:
