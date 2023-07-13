@@ -5,10 +5,6 @@ import pytest
 
 @pytest.mark.xfail
 def test_create_count_obliterate_concurrency_bug(conn, tmp_collection):
-    # This mark this test as failed, but don't run it as it
-    # currently crashes btrdb, it needs to be resolved and
-    # enabled.
-    assert False
     from concurrent.futures import ThreadPoolExecutor
 
     n_streams = 10
