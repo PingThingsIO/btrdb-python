@@ -115,3 +115,52 @@ def test_arrow_streamset_to_dataframe(conn, tmp_collection):
     }
     expected_df = pd.DataFrame(expected_dat, index=pd.DatetimeIndex(expected_times))
     assert values.equals(expected_df)
+
+
+def test_timesnap_backward_extends_range(conn, tmp_collection):
+    sec = 10**9
+    tv1 = [
+        [int(0.5 * sec), 0.5],
+        [2 * sec, 2.0],
+    ]
+    tv2 = [
+        [int(0.5 * sec) - 1, 0.5],
+        [2 * sec, 2.0],
+    ]
+    tv3 = [
+        [1 * sec, 1.0],
+        [2 * sec, 2.0],
+    ]
+    s1 = conn.create(new_uuid(), tmp_collection, tags={"name": "s1"})
+    s2 = conn.create(new_uuid(), tmp_collection, tags={"name": "s2"})
+    s3 = conn.create(new_uuid(), tmp_collection, tags={"name": "s3"})
+    s1.insert(tv1)
+    s2.insert(tv2)
+    s3.insert(tv3)
+    ss = btrdb.stream.StreamSet([s1, s2, s3]).filter(
+        start=1 * sec, end=3 * sec, sampling_frequency=1
+    )
+    values = ss.arrow_values()
+    assert [1 * sec, 2 * sec] == [t.value for t in values["time"]]
+    assert [0.5, 2.0] == [v.as_py() for v in values[tmp_collection + "/s1"]]
+    assert [None, 2.0] == [
+        None if isnan(v.as_py()) else v.as_py() for v in values[tmp_collection + "/s2"]
+    ]
+    assert [1.0, 2.0] == [v.as_py() for v in values[tmp_collection + "/s3"]]
+
+
+def test_timesnap_forward_restricts_range(conn, tmp_collection):
+    sec = 10**9
+    tv = [
+        [1 * sec, 1.0],
+        [2 * sec, 2.0],
+        [int(2.75 * sec), 2.75],
+    ]
+    s = conn.create(new_uuid(), tmp_collection, tags={"name": "s"})
+    s.insert(tv)
+    ss = btrdb.stream.StreamSet([s]).filter(start=1 * sec, sampling_frequency=1)
+    values = ss.filter(end=int(3.0 * sec)).arrow_values()
+    assert [1 * sec, 2 * sec] == [t.value for t in values["time"]]
+    assert [1.0, 2.0] == [v.as_py() for v in values[tmp_collection + "/s"]]
+    # Same result if skipping past end instead of to end.
+    assert values == ss.filter(end=int(2.9 * sec)).arrow_values()
