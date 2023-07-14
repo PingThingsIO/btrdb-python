@@ -180,16 +180,35 @@ def arrow_to_dataframe(
     # default arg values
     if not callable(name_callable):
         name_callable = lambda s: s.collection + "/" + s.name
+    # format is: uuid/stat_type
     tmp_table = streamset.arrow_values()
+    print(tmp_table)
+    table_columns = tmp_table.column_names
+    print(table_columns)
     col_names = _stream_names(streamset, name_callable)
-    cols = []
-    for name in col_names:
-        for prop in _STAT_PROPERTIES:
-            cols.append(name + "/" + prop)
+    print(col_names)
+    col_names_map = {str(s.uuid): c for s, c in zip(streamset, col_names)}
+    print(col_names_map)
+    updated_table_columns = []
+    for old_col in table_columns:
+        if old_col == "time":
+            updated_table_columns.append("time")
+        else:
+            for uu, new_name in col_names_map.items():
+                if uu in old_col:
+                    updated_table_columns.append(old_col.replace(uu, new_name))
+                else:
+                    continue
+
+    # print(tmp_table)
+    print(updated_table_columns)
+    print(col_names_map)
+    tmp_table = tmp_table.rename_columns(updated_table_columns)
+    print(tmp_table)
     if agg == "all":
-        tmp = tmp_table.select(["time", *cols])
+        tmp = tmp_table
     elif not streamset.allow_window:
-        usable_cols = [val for val in cols if agg in val]
+        usable_cols = [val for val in tmp_table.column_names if agg in val]
         tmp = tmp_table.select(["time", *usable_cols])
     else:
         tmp = tmp_table
@@ -257,7 +276,7 @@ def to_dataframe(streamset, columns=None, agg="mean", name_callable=None):
     if not callable(name_callable):
         name_callable = lambda s: s.collection + "/" + s.name
 
-    df = pd.DataFrame(to_dict(streamset, agg=agg))
+    df = pd.DataFrame(to_dict(streamset, agg=agg, name_callable=name_callable))
 
     if not df.empty:
         df = df.set_index("time")
@@ -352,7 +371,7 @@ def to_polars(streamset, agg="mean", name_callable=None):
     if not callable(name_callable):
         name_callable = lambda s: s.collection + "/" + s.name
 
-        df = streamset.to_dataframe(agg=agg)
+        df = streamset.to_dataframe(agg=agg, name_callable=name_callable)
     else:
         df = pd.DataFrame(to_dict(streamset, agg=agg, name_callable=name_callable))
 

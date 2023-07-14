@@ -179,7 +179,7 @@ def _is_arrow_enabled(info):
     if logger.isEnabledFor(logging.DEBUG):
         logger.debug(f"major version: {major}")
         logger.debug(f"minor version: {minor}")
-    if major >= 5 and minor >= 30:
+    if major >= 5 and minor >= 29:
         return True
     else:
         return False
@@ -193,7 +193,10 @@ class BTrDB(object):
     def __init__(self, endpoint):
         self.ep = endpoint
         self._executor = ThreadPoolExecutor()
-        self._ARROW_ENABLED = True  # _is_arrow_enabled(self.ep.info())
+        try:
+            self._ARROW_ENABLED = _is_arrow_enabled(self.ep.info())
+        except Exception:
+            self._ARROW_ENABLED = False
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f"ARROW ENABLED: {self._ARROW_ENABLED}")
 

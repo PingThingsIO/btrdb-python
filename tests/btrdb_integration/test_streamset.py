@@ -40,25 +40,6 @@ def test_streamset_values(conn, tmp_collection):
     assert [(p.time, p.value) for p in values[1]] == list(zip(t2, d2))
 
 
-def test_streamset_arrow_windows_vs_windows(conn, tmp_collection):
-    s1 = conn.create(new_uuid(), tmp_collection, tags={"name": "s1"})
-    s2 = conn.create(new_uuid(), tmp_collection, tags={"name": "s2"})
-    t1 = [100, 105, 110, 115, 120]
-    t2 = [101, 106, 110, 114, 119]
-    d1 = [0.0, 1.0, 2.0, 3.0, 4.0]
-    d2 = [5.0, 6.0, 7.0, 8.0, 9.0]
-    s1.insert(list(zip(t1, d1)))
-    s2.insert(list(zip(t2, d2)))
-    ss = (
-        btrdb.stream.StreamSet([s1, s2])
-        .filter(start=100, end=121)
-        .windows(width=btrdb.utils.timez.ns_delta(nanoseconds=10))
-    )
-    values_arrow = ss.arrow_to_dataframe()
-    values_prev = ss.to_dataframe()
-    assert values_arrow.equals(values_prev)
-
-
 def test_streamset_arrow_values(conn, tmp_collection):
     s1 = conn.create(new_uuid(), tmp_collection, tags={"name": "s1"})
     s2 = conn.create(new_uuid(), tmp_collection, tags={"name": "s2"})
@@ -75,22 +56,77 @@ def test_streamset_arrow_values(conn, tmp_collection):
     expected_schema = pa.schema(
         [
             pa.field("time", pa.timestamp("ns", tz="UTC"), nullable=False),
-            pa.field(tmp_collection + "/" + "s1", pa.float64(), nullable=False),
-            pa.field(tmp_collection + "/" + "s2", pa.float64(), nullable=False),
+            pa.field(str(s1.uuid), pa.float64(), nullable=False),
+            pa.field(str(s2.uuid), pa.float64(), nullable=False),
         ]
     )
     values = ss.arrow_values()
+    print(values)
     times = [t.value for t in values["time"]]
-    col1 = [
-        None if isnan(v.as_py()) else v.as_py() for v in values[tmp_collection + "/s1"]
-    ]
-    col2 = [
-        None if isnan(v.as_py()) else v.as_py() for v in values[tmp_collection + "/s2"]
-    ]
+    col1 = [None if isnan(v.as_py()) else v.as_py() for v in values[str(s1.uuid)]]
+    col2 = [None if isnan(v.as_py()) else v.as_py() for v in values[str(s2.uuid)]]
     assert times == expected_times
     assert col1 == expected_col1
     assert col2 == expected_col2
     assert expected_schema.equals(values.schema)
+
+
+@pytest.mark.parametrize(
+    "name_callable",
+    [(None), (lambda s: str(s.uuid)), (lambda s: s.name + "/" + s.collection)],
+    ids=["empty", "uu_as_str", "name_collection"],
+)
+def test_streamset_arrow_windows_vs_windows(conn, tmp_collection, name_callable):
+    s1 = conn.create(new_uuid(), tmp_collection, tags={"name": "s1"})
+    s2 = conn.create(new_uuid(), tmp_collection, tags={"name": "s2"})
+    s3 = conn.create(new_uuid(), tmp_collection, tags={"name": "s3"})
+    t1 = [100, 105, 110, 115, 120]
+    t2 = [101, 106, 110, 114, 119]
+    d1 = [0.0, 1.0, 2.0, 3.0, 4.0]
+    d2 = [5.0, 6.0, 7.0, 8.0, 9.0]
+    d3 = [1.0, 9.0, 44.0, 8.0, 9.0]
+    s1.insert(list(zip(t1, d1)))
+    s2.insert(list(zip(t2, d2)))
+    s3.insert(list(zip(t2, d3)))
+    ss = (
+        btrdb.stream.StreamSet([s1, s2, s3])
+        .filter(start=100, end=121)
+        .windows(width=btrdb.utils.timez.ns_delta(nanoseconds=10))
+    )
+    values_arrow = ss.arrow_to_dataframe(name_callable=name_callable)
+    values_prev = ss.to_dataframe(name_callable=name_callable)
+    values_prev.index = pd.DatetimeIndex(values_prev.index, tz="UTC")
+    assert values_arrow.equals(values_prev)
+
+
+@pytest.mark.parametrize(
+    "name_callable",
+    [(None), (lambda s: str(s.uuid)), (lambda s: s.name + "/" + s.collection)],
+    ids=["empty", "uu_as_str", "name_collection"],
+)
+def test_streamset_arrow_aligned_windows_vs_aligned_windows(
+    conn, tmp_collection, name_callable
+):
+    s1 = conn.create(new_uuid(), tmp_collection, tags={"name": "s1"})
+    s2 = conn.create(new_uuid(), tmp_collection, tags={"name": "s2"})
+    s3 = conn.create(new_uuid(), tmp_collection, tags={"name": "s3"})
+    t1 = [100, 105, 110, 115, 120]
+    t2 = [101, 106, 110, 114, 119]
+    d1 = [0.0, 1.0, 2.0, 3.0, 4.0]
+    d2 = [5.0, 6.0, 7.0, 8.0, 9.0]
+    d3 = [1.0, 9.0, 44.0, 8.0, 9.0]
+    s1.insert(list(zip(t1, d1)))
+    s2.insert(list(zip(t2, d2)))
+    s3.insert(list(zip(t2, d3)))
+    ss = (
+        btrdb.stream.StreamSet([s1, s2, s3])
+        .filter(start=100, end=121)
+        .windows(width=btrdb.utils.general.pointwidth.from_nanoseconds(10))
+    )
+    values_arrow = ss.arrow_to_dataframe(name_callable=name_callable)
+    values_prev = ss.to_dataframe(name_callable=name_callable)
+    values_prev.index = pd.DatetimeIndex(values_prev.index, tz="UTC")
+    assert values_arrow.equals(values_prev)
 
 
 def test_streamset_empty_arrow_values(conn, tmp_collection):
@@ -100,11 +136,11 @@ def test_streamset_empty_arrow_values(conn, tmp_collection):
     expected_schema = pa.schema(
         [
             pa.field("time", pa.timestamp("ns", tz="UTC"), nullable=False),
-            pa.field(tmp_collection + "/" + "s", pa.float64(), nullable=False),
+            pa.field(str(s.uuid), pa.float64(), nullable=False),
         ]
     )
     assert [t.value for t in values["time"]] == []
-    assert [v for v in values[tmp_collection + "/s"]] == []
+    assert [v for v in values[str(s.uuid)]] == []
     assert expected_schema.equals(values.schema)
 
 
@@ -183,7 +219,12 @@ def test_arrow_streamset_to_polars(conn, tmp_collection):
     assert values.frame_equal(expected_df_pl)
 
 
-def test_streamset_arrow_polars_vs_old_to_polars(conn, tmp_collection):
+@pytest.mark.parametrize(
+    "name_callable",
+    [(None), (lambda s: str(s.uuid)), (lambda s: s.name + "/" + s.collection)],
+    ids=["empty", "uu_as_str", "name_collection"],
+)
+def test_streamset_arrow_polars_vs_old_to_polars(conn, tmp_collection, name_callable):
     s1 = conn.create(new_uuid(), tmp_collection, tags={"name": "s1"})
     s2 = conn.create(new_uuid(), tmp_collection, tags={"name": "s2"})
     t1 = [100, 105, 110, 115, 120]
@@ -213,6 +254,35 @@ def test_streamset_arrow_polars_vs_old_to_polars(conn, tmp_collection):
     assert values_non_arrow.frame_equal(expected_df_pl)
 
 
+@pytest.mark.parametrize(
+    "name_callable",
+    [(None), (lambda s: str(s.uuid)), (lambda s: s.name + "/" + s.collection)],
+    ids=["empty", "uu_as_str", "name_collection"],
+)
+def test_streamset_windows_arrow_polars_vs_old_to_polars(
+    conn, tmp_collection, name_callable
+):
+    s1 = conn.create(new_uuid(), tmp_collection, tags={"name": "s1"})
+    s2 = conn.create(new_uuid(), tmp_collection, tags={"name": "s2"})
+    s3 = conn.create(new_uuid(), tmp_collection, tags={"name": "s3"})
+    t1 = [100, 105, 110, 115, 120]
+    t2 = [101, 106, 110, 114, 119]
+    d1 = [0.0, 1.0, 2.0, 3.0, 4.0]
+    d2 = [5.0, 6.0, 7.0, 8.0, 9.0]
+    d3 = [1.0, 9.0, 44.0, 8.0, 9.0]
+    s1.insert(list(zip(t1, d1)))
+    s2.insert(list(zip(t2, d2)))
+    s3.insert(list(zip(t2, d3)))
+    ss = (
+        btrdb.stream.StreamSet([s1, s2, s3])
+        .filter(start=100, end=121)
+        .windows(width=btrdb.utils.timez.ns_delta(nanoseconds=10))
+    )
+    values_arrow_pl = ss.arrow_to_polars(name_callable=name_callable)
+    values_non_arrow_pl = ss.to_polars(name_callable=name_callable)
+    assert values_arrow_pl.frame_equal(values_non_arrow_pl)
+
+
 def test_timesnap_backward_extends_range(conn, tmp_collection):
     sec = 10**9
     tv1 = [
@@ -238,11 +308,11 @@ def test_timesnap_backward_extends_range(conn, tmp_collection):
     )
     values = ss.arrow_values()
     assert [1 * sec, 2 * sec] == [t.value for t in values["time"]]
-    assert [0.5, 2.0] == [v.as_py() for v in values[tmp_collection + "/s1"]]
+    assert [0.5, 2.0] == [v.as_py() for v in values[str(s1.uuid)]]
     assert [None, 2.0] == [
-        None if isnan(v.as_py()) else v.as_py() for v in values[tmp_collection + "/s2"]
+        None if isnan(v.as_py()) else v.as_py() for v in values[str(s2.uuid)]
     ]
-    assert [1.0, 2.0] == [v.as_py() for v in values[tmp_collection + "/s3"]]
+    assert [1.0, 2.0] == [v.as_py() for v in values[str(s3.uuid)]]
 
 
 def test_timesnap_forward_restricts_range(conn, tmp_collection):
@@ -257,6 +327,6 @@ def test_timesnap_forward_restricts_range(conn, tmp_collection):
     ss = btrdb.stream.StreamSet([s]).filter(start=1 * sec, sampling_frequency=1)
     values = ss.filter(end=int(3.0 * sec)).arrow_values()
     assert [1 * sec, 2 * sec] == [t.value for t in values["time"]]
-    assert [1.0, 2.0] == [v.as_py() for v in values[tmp_collection + "/s"]]
+    assert [1.0, 2.0] == [v.as_py() for v in values[str(s.uuid)]]
     # Same result if skipping past end instead of to end.
     assert values == ss.filter(end=int(2.9 * sec)).arrow_values()

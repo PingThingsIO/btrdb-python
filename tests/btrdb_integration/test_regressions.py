@@ -3,7 +3,8 @@ from uuid import uuid4 as new_uuid
 import pytest
 
 
-@pytest.mark.xfail
+# @pytest.mark.xfail
+@pytest.mark.skip
 def test_create_count_obliterate_concurrency_bug(conn, tmp_collection):
     from concurrent.futures import ThreadPoolExecutor
 

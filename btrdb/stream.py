@@ -1745,7 +1745,9 @@ class StreamSetBase(Sequence):
             result.append([point[0] for point in stream_data])
         return result
 
-    def arrow_values(self, name_callable=lambda s: s.collection + "/" + s.name):
+    def arrow_values(
+        self,
+    ):
         """Return a pyarrow table of stream values based on the streamset parameters."""
         params = self._params_from_filters()
         versions = self._pinned_versions
@@ -1771,8 +1773,8 @@ class StreamSetBase(Sequence):
             )
             stream_uus = [str(s.uuid) for s in self._streams]
             data = list(aligned_windows_gen)
-            tablex = data.pop()
-            uu = stream_uus.pop()
+            tablex = data.pop(0)
+            uu = stream_uus.pop(0)
             tab_columns = [
                 c if c == "time" else uu + "/" + c for c in tablex.column_names
             ]
@@ -1801,8 +1803,8 @@ class StreamSetBase(Sequence):
             )
             stream_uus = [str(s.uuid) for s in self._streams]
             data = list(windows_gen)
-            tablex = data.pop()
-            uu = stream_uus.pop()
+            tablex = data.pop(0)
+            uu = stream_uus.pop(0)
             tab_columns = [
                 c if c == "time" else uu + "/" + c for c in tablex.column_names
             ]
@@ -1828,14 +1830,11 @@ class StreamSetBase(Sequence):
             table = list(self._btrdb.ep.arrowMultiValues(**params))
             if len(table) > 0:
                 data = pa.concat_tables(table)
-                data = data.rename_columns(
-                    ["time"] + [name_callable(s) for s in self._streams]
-                )
             else:
                 schema = pa.schema(
                     [pa.field("time", pa.timestamp("ns", tz="UTC"), nullable=False)]
                     + [
-                        pa.field(name_callable(s), pa.float64(), nullable=False)
+                        pa.field(str(s.uuid), pa.float64(), nullable=False)
                         for s in self._streams
                     ],
                 )
