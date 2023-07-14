@@ -34,6 +34,7 @@ from btrdb.exceptions import (
     InvalidOperation,
     NoSuchPoint,
     StreamNotFoundError,
+    retry,
 )
 from btrdb.point import RawPoint, StatPoint
 from btrdb.transformers import _STAT_PROPERTIES, StreamSetTransformer
@@ -304,7 +305,15 @@ class Stream(object):
         self.refresh_metadata()
         return self._collection
 
-    def earliest(self, version=0):
+    @retry
+    def earliest(
+        self,
+        version=0,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ):
         """
         Returns the first point of data in the stream. Returns None if error
         encountered during lookup or no values in stream.
@@ -325,7 +334,15 @@ class Stream(object):
         start = MINIMUM_TIME
         return self.nearest(start, version=version, backward=False)
 
-    def latest(self, version=0):
+    @retry
+    def latest(
+        self,
+        version=0,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ):
         """
         Returns last point of data in the stream. Returns None if error
         encountered during lookup or no values in stream.
@@ -346,7 +363,15 @@ class Stream(object):
         start = MAXIMUM_TIME
         return self.nearest(start, version=version, backward=True)
 
-    def current(self, version=0):
+    @retry
+    def current(
+        self,
+        version=0,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ):
         """
         Returns the point that is closest to the current timestamp, e.g. the latest
         point in the stream up until now. Note that no future values will be returned.
@@ -367,7 +392,15 @@ class Stream(object):
         start = currently_as_ns()
         return self.nearest(start, version, backward=True)
 
-    def tags(self, refresh=False):
+    @retry
+    def tags(
+        self,
+        refresh=False,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ):
         """
         Returns the stream's tags.
 
@@ -391,7 +424,15 @@ class Stream(object):
 
         return deepcopy(self._tags)
 
-    def annotations(self, refresh=False):
+    @retry
+    def annotations(
+        self,
+        refresh=False,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ):
         """
         Returns a stream's annotations
 
@@ -418,7 +459,14 @@ class Stream(object):
 
         return deepcopy(self._annotations), deepcopy(self._property_version)
 
-    def version(self):
+    @retry
+    def version(
+        self,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ):
         """
         Returns the current data version of the stream.
 
@@ -573,6 +621,7 @@ class Stream(object):
             removals=removals,
         )
 
+    @retry
     def update(
         self,
         tags=None,
@@ -580,6 +629,10 @@ class Stream(object):
         collection=None,
         encoder=AnnotationEncoder,
         replace=False,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
     ):
         """
         Updates metadata including tags, annotations, and collection as an
@@ -653,7 +706,16 @@ class Stream(object):
 
         return self._property_version
 
-    def delete(self, start, end):
+    @retry
+    def delete(
+        self,
+        start,
+        end,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ):
         """
         "Delete" all points between [`start`, `end`)
 
@@ -681,7 +743,17 @@ class Stream(object):
             self._uuid, to_nanoseconds(start), to_nanoseconds(end)
         )
 
-    def values(self, start, end, version=0):
+    @retry
+    def values(
+        self,
+        start,
+        end,
+        version=0,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ):
         """
         Read raw values from BTrDB between time [a, b) in nanoseconds.
 
@@ -725,7 +797,17 @@ class Stream(object):
                 materialized.append((RawPoint.from_proto(point), version))
         return materialized
 
-    def arrow_values(self, start, end, version: int = 0) -> pa.Table:
+    @retry
+    def arrow_values(
+        self,
+        start,
+        end,
+        version: int = 0,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ) -> pa.Table:
         """Read raw values from BTrDB between time [a, b) in nanoseconds.
 
         RawValues queries BTrDB for the raw time series data points between
@@ -775,7 +857,18 @@ class Stream(object):
             )
             return pa.Table.from_arrays([pa.array([]), pa.array([])], schema=schema)
 
-    def aligned_windows(self, start, end, pointwidth, version=0):
+    @retry
+    def aligned_windows(
+        self,
+        start,
+        end,
+        pointwidth,
+        version=0,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ):
         """
         Read statistical aggregates of windows of data from BTrDB.
 
@@ -829,8 +922,17 @@ class Stream(object):
                 materialized.append((StatPoint.from_proto(point), version))
         return tuple(materialized)
 
+    @retry
     def arrow_aligned_windows(
-        self, start: int, end: int, pointwidth: int, version: int = 0
+        self,
+        start: int,
+        end: int,
+        pointwidth: int,
+        version: int = 0,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
     ) -> pa.Table:
         """Read statistical aggregates of windows of data from BTrDB.
 
@@ -901,7 +1003,19 @@ class Stream(object):
             )
             return pa.Table.from_arrays([pa.array([]) for _ in range(5)], schema=schema)
 
-    def windows(self, start, end, width, depth=0, version=0):
+    @retry
+    def windows(
+        self,
+        start,
+        end,
+        width,
+        depth=0,
+        version=0,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ):
         """
         Read arbitrarily-sized windows of data from BTrDB.  StatPoint objects
         will be returned representing the data for each window.
@@ -951,8 +1065,17 @@ class Stream(object):
 
         return tuple(materialized)
 
+    @retry
     def arrow_windows(
-        self, start: int, end: int, width: int, version: int = 0
+        self,
+        start: int,
+        end: int,
+        width: int,
+        version: int = 0,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
     ) -> pa.Table:
         """Read arbitrarily-sized windows of data from BTrDB.
 
@@ -1018,7 +1141,17 @@ class Stream(object):
             )
             return pa.Table.from_arrays([pa.array([]) for _ in range(5)], schema=schema)
 
-    def nearest(self, time, version, backward=False):
+    @retry
+    def nearest(
+        self,
+        time,
+        version,
+        backward=False,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ):
         """
         Finds the closest point in the stream to a specified time.
 
@@ -1062,7 +1195,14 @@ class Stream(object):
 
         return RawPoint.from_proto(rp), version
 
-    def obliterate(self):
+    @retry
+    def obliterate(
+        self,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ):
         """
         Obliterate deletes a stream from the BTrDB server.  An exception will be
         raised if the stream could not be found.
@@ -1075,7 +1215,14 @@ class Stream(object):
         """
         self._btrdb.ep.obliterate(self._uuid)
 
-    def flush(self):
+    @retry
+    def flush(
+        self,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ):
         """
         Flush writes the stream buffers out to persistent storage.
 

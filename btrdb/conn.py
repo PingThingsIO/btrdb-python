@@ -26,7 +26,7 @@ import certifi
 import grpc
 from grpc._cython.cygrpc import CompressionAlgorithm
 
-from btrdb.exceptions import InvalidOperation, StreamNotFoundError
+from btrdb.exceptions import InvalidOperation, StreamNotFoundError, retry
 from btrdb.stream import Stream, StreamSet
 from btrdb.utils.conversion import to_uuid
 from btrdb.utils.general import unpack_stream_descriptor
@@ -200,7 +200,16 @@ class BTrDB(object):
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f"ARROW ENABLED: {self._ARROW_ENABLED}")
 
-    def query(self, stmt, params=[]):
+    @retry
+    def query(
+        self,
+        stmt,
+        params=None,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ):
         """
         Performs a SQL query on the database metadata and returns a list of
         dictionaries from the resulting cursor.
@@ -230,6 +239,8 @@ class BTrDB(object):
 
         See https://btrdb.readthedocs.io/en/latest/ for more info.
         """
+        if params is None:
+            params = list()
         return [
             json.loads(row.decode("utf-8"))
             for page in self.ep.sql_query(stmt, params)
@@ -320,7 +331,18 @@ class BTrDB(object):
         """
         return Stream(self, to_uuid(uuid))
 
-    def create(self, uuid, collection, tags=None, annotations=None):
+    @retry
+    def create(
+        self,
+        uuid,
+        collection,
+        tags=None,
+        annotations=None,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ):
         """
         Tells BTrDB to create a new stream with UUID `uuid` in `collection` with specified `tags` and `annotations`.
 
@@ -382,8 +404,17 @@ class BTrDB(object):
         """
         return [c for some in self.ep.listCollections(starts_with) for c in some]
 
+    @retry
     def streams_in_collection(
-        self, *collection, is_collection_prefix=True, tags=None, annotations=None
+        self,
+        *collection,
+        is_collection_prefix=True,
+        tags=None,
+        annotations=None,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
     ):
         """
         Search for streams matching given parameters
@@ -439,7 +470,15 @@ class BTrDB(object):
 
         return result
 
-    def collection_metadata(self, prefix):
+    @retry
+    def collection_metadata(
+        self,
+        prefix,
+        auto_retry=False,
+        retries=5,
+        retry_delay=3,
+        retry_backoff=4,
+    ):
         """
         Gives statistics about metadata for collections that match a
         prefix.

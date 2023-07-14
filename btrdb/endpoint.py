@@ -25,9 +25,8 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 import io
+import typing
 import uuid
-
-import grpc
 
 from btrdb.exceptions import BTrDBError, check_proto_stat, error_handler
 from btrdb.grpcinterface import btrdb_pb2, btrdb_pb2_grpc
@@ -382,7 +381,7 @@ class Endpoint(object):
             yield result.row
 
     @error_handler
-    def sql_query(self, stmt, params=[]):
+    def sql_query(self, stmt, params: typing.List):
         request = btrdb_pb2.SQLQueryParams(query=stmt, params=params)
         for page in self.stub.SQLQuery(request):
             check_proto_stat(page.stat)
