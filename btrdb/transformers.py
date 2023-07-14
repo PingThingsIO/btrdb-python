@@ -182,13 +182,9 @@ def arrow_to_dataframe(
         name_callable = lambda s: s.collection + "/" + s.name
     # format is: uuid/stat_type
     tmp_table = streamset.arrow_values()
-    print(tmp_table)
     table_columns = tmp_table.column_names
-    print(table_columns)
     col_names = _stream_names(streamset, name_callable)
-    print(col_names)
     col_names_map = {str(s.uuid): c for s, c in zip(streamset, col_names)}
-    print(col_names_map)
     updated_table_columns = []
     for old_col in table_columns:
         if old_col == "time":
@@ -200,11 +196,7 @@ def arrow_to_dataframe(
                 else:
                     continue
 
-    # print(tmp_table)
-    print(updated_table_columns)
-    print(col_names_map)
     tmp_table = tmp_table.rename_columns(updated_table_columns)
-    print(tmp_table)
     if agg == "all":
         tmp = tmp_table
     elif not streamset.allow_window:

@@ -61,7 +61,6 @@ def test_streamset_arrow_values(conn, tmp_collection):
         ]
     )
     values = ss.arrow_values()
-    print(values)
     times = [t.value for t in values["time"]]
     col1 = [None if isnan(v.as_py()) else v.as_py() for v in values[str(s1.uuid)]]
     col2 = [None if isnan(v.as_py()) else v.as_py() for v in values[str(s2.uuid)]]
