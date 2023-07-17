@@ -19,6 +19,7 @@ import json
 import logging
 import os
 import re
+from typing import List
 import uuid as uuidlib
 from concurrent.futures import ThreadPoolExecutor
 
@@ -280,8 +281,7 @@ class BTrDB(object):
 
         if versions and len(versions) != len(identifiers):
             raise ValueError("number of versions does not match identifiers")
-
-        streams = []
+        streams: List[Stream] = []
         for ident in identifiers:
             if isinstance(ident, uuidlib.UUID):
                 streams.append(self.stream_from_uuid(ident))
@@ -302,7 +302,10 @@ class BTrDB(object):
                         is_collection_prefix=is_collection_prefix,
                         tags={"name": parts[-1]},
                     )
-                    if len(found) == 1:
+                    if isinstance(found, Stream):
+                        streams.append(found)
+                        continue
+                    if isinstance(found, list) and len(found) == 1:
                         streams.append(found[0])
                         continue
                     raise StreamNotFoundError(f"Could not identify stream `{ident}`")
@@ -310,7 +313,6 @@ class BTrDB(object):
             raise ValueError(
                 f"Could not identify stream based on `{ident}`.  Identifier must be UUID or collection/name."
             )
-
         obj = StreamSet(streams)
 
         if versions:

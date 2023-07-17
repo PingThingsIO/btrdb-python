@@ -17,6 +17,7 @@ Module for Stream and related classes
 import json
 import logging
 import re
+from typing import List
 import uuid as uuidlib
 import warnings
 from collections import deque
@@ -1438,8 +1439,14 @@ class StreamSetBase(Sequence):
     A lighweight wrapper around a list of stream objects
     """
 
-    def __init__(self, streams):
-        self._streams = streams
+    def __init__(self, streams: List[Stream]):
+        self._streams: List[Stream] = []
+        for stream in streams:
+            if not isinstance(stream, Stream):
+                raise BTRDBTypeError(
+                    f"streams must be of type Stream {stream}, {type(stream)}"
+                )
+            self._streams.append(stream)
         if len(self._streams) < 1:
             raise ValueError(
                 f"Trying to create streamset with an empty list of streams {self._streams}."
@@ -2213,6 +2220,15 @@ class StreamSetBase(Sequence):
             raise KeyError("Stream with uuid `{}` not found.".format(str(item)))
 
         return self._streams[item]
+
+    def __contains__(self, item):
+        if isinstance(item, str):
+            for stream in self._streams:
+                if str(stream.uuid()) == item:
+                    return True
+            return False
+
+        return item in self._streams
 
     def __len__(self):
         return len(self._streams)
