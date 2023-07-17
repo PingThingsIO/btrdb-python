@@ -994,8 +994,8 @@ class Stream(object):
             schema = pa.schema(
                 [
                     pa.field("time", pa.timestamp("ns", tz="UTC"), nullable=False),
-                    pa.field("mean", pa.float64(), nullable=False),
                     pa.field("min", pa.float64(), nullable=False),
+                    pa.field("mean", pa.float64(), nullable=False),
                     pa.field("max", pa.float64(), nullable=False),
                     pa.field("count", pa.uint64(), nullable=False),
                     pa.field("stddev", pa.float64(), nullable=False),
@@ -1132,8 +1132,8 @@ class Stream(object):
             schema = pa.schema(
                 [
                     pa.field("time", pa.timestamp("ns", tz="UTC"), nullable=False),
-                    pa.field("mean", pa.float64(), nullable=False),
                     pa.field("min", pa.float64(), nullable=False),
+                    pa.field("mean", pa.float64(), nullable=False),
                     pa.field("max", pa.float64(), nullable=False),
                     pa.field("count", pa.uint64(), nullable=False),
                     pa.field("stddev", pa.float64(), nullable=False),

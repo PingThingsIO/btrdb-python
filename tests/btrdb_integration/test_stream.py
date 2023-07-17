@@ -144,7 +144,7 @@ def test_arrow_windows(
     stddev_dat = np.std(np.asarray(values).reshape(-1, 5), axis=1)
     time_dat = [t for i, t in enumerate(times) if i % 5 == 0]
     window_table = pa.Table.from_arrays(
-        [time_dat, mean_dat, min_dat, max_dat, count_dat, stddev_dat],
+        [time_dat, min_dat, mean_dat, max_dat, count_dat, stddev_dat],
         schema=single_stream_windows_all_stats_arrow_schema,
     )
     s.arrow_insert(data)
@@ -236,13 +236,16 @@ def test_arrow_aligned_windows_vs_aligned_windows(
     for statpt, ver in other_method:
         tmp = dict()
         tmp["time"] = statpt.time
-        tmp["mean"] = statpt.mean
         tmp["min"] = statpt.min
+        tmp["mean"] = statpt.mean
         tmp["max"] = statpt.max
         tmp["count"] = statpt.count
         tmp["stddev"] = statpt.stddev
         other_method_data.append(tmp)
     other_method_df = pd.DataFrame(other_method_data)
+    print(fetched_df.info())
+    print(other_method_df.info())
+    print(fetched_df.values - other_method_df.values)
     assert fetched_data.schema.equals(single_stream_windows_all_stats_arrow_schema)
     assert fetched_df.equals(other_method_df)
 
@@ -285,8 +288,8 @@ def compare_arrow_windows_vs_windows(
     for statpt, ver in other_method:
         tmp = dict()
         tmp["time"] = statpt.time
-        tmp["mean"] = statpt.mean
         tmp["min"] = statpt.min
+        tmp["mean"] = statpt.mean
         tmp["max"] = statpt.max
         tmp["count"] = statpt.count
         tmp["stddev"] = statpt.stddev

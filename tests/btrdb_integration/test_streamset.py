@@ -95,7 +95,49 @@ def test_streamset_arrow_windows_vs_windows(conn, tmp_collection, name_callable)
     values_arrow = ss.arrow_to_dataframe(name_callable=name_callable)
     values_prev = ss.to_dataframe(name_callable=name_callable)
     values_prev.index = pd.DatetimeIndex(values_prev.index, tz="UTC")
+    col_map = {old_col: old_col + "/mean" for old_col in values_prev.columns}
+    values_prev = values_prev.rename(columns=col_map)
     assert values_arrow.equals(values_prev)
+
+
+def test_streamset_arrow_windows_vs_windows_agg_all(conn, tmp_collection):
+    s1 = conn.create(new_uuid(), tmp_collection, tags={"name": "s1"})
+    s2 = conn.create(new_uuid(), tmp_collection, tags={"name": "s2"})
+    s3 = conn.create(new_uuid(), tmp_collection, tags={"name": "s3"})
+    t1 = [100, 105, 110, 115, 120]
+    t2 = [101, 106, 110, 114, 119]
+    d1 = [0.0, 1.0, 2.0, 3.0, 4.0]
+    d2 = [5.0, 6.0, 7.0, 8.0, 9.0]
+    d3 = [1.0, 9.0, 44.0, 8.0, 9.0]
+    s1.insert(list(zip(t1, d1)))
+    s2.insert(list(zip(t2, d2)))
+    s3.insert(list(zip(t2, d3)))
+    ss = (
+        btrdb.stream.StreamSet([s1, s2, s3])
+        .filter(start=100, end=121)
+        .windows(width=btrdb.utils.timez.ns_delta(nanoseconds=10))
+    )
+    values_arrow = ss.arrow_to_dataframe(name_callable=None, agg=["all"])
+    values_arrow = values_arrow.apply(
+        lambda x: x.astype(int) if "count" in x.name else x
+    )
+    values_prev = ss.to_dataframe(name_callable=None, agg="all")
+    values_prev.index = pd.DatetimeIndex(values_prev.index, tz="UTC")
+    new_cols = ["/".join(old_col) for old_col in values_prev.columns]
+    values_prev.columns = new_cols
+    assert values_arrow.equals(values_prev)
+
+    with pytest.raises(
+        AttributeError,
+        match="cannot provide name_callable when using 'all' as aggregate at this time",
+    ):
+        values_prev = ss.to_dataframe(name_callable=lambda x: str(x.uuid), agg="all")
+    other_arrow_df = ss.arrow_to_dataframe(
+        agg=["all", "mean", "trash"], name_callable=lambda x: str(x.uuid)
+    )
+    assert (
+        len(other_arrow_df.filter(regex="[min,mean,max,count,stddev]").columns) == 3 * 5
+    )
 
 
 @pytest.mark.parametrize(
@@ -123,8 +165,13 @@ def test_streamset_arrow_aligned_windows_vs_aligned_windows(
         .windows(width=btrdb.utils.general.pointwidth.from_nanoseconds(10))
     )
     values_arrow = ss.arrow_to_dataframe(name_callable=name_callable)
+    values_arrow = values_arrow.apply(
+        lambda x: x.astype(int) if "count" in x.name else x
+    )
     values_prev = ss.to_dataframe(name_callable=name_callable)
     values_prev.index = pd.DatetimeIndex(values_prev.index, tz="UTC")
+    col_map = {old_col: old_col + "/mean" for old_col in values_prev.columns}
+    values_prev = values_prev.rename(columns=col_map)
     assert values_arrow.equals(values_prev)
 
 
@@ -279,7 +326,44 @@ def test_streamset_windows_arrow_polars_vs_old_to_polars(
     )
     values_arrow_pl = ss.arrow_to_polars(name_callable=name_callable)
     values_non_arrow_pl = ss.to_polars(name_callable=name_callable)
+    new_names = {
+        old_col: str(old_col) + "/" + "mean"
+        for old_col in values_non_arrow_pl.select(pl.col(pl.Float64)).columns
+    }
+    new_names["time"] = "time"
+    values_non_arrow_pl = values_non_arrow_pl.rename(mapping=new_names)
     assert values_arrow_pl.frame_equal(values_non_arrow_pl)
+
+
+def test_streamset_windows_aggregates_filter(conn, tmp_collection):
+    s1 = conn.create(new_uuid(), tmp_collection, tags={"name": "s1"})
+    s2 = conn.create(new_uuid(), tmp_collection, tags={"name": "s2"})
+    s3 = conn.create(new_uuid(), tmp_collection, tags={"name": "s3"})
+    t1 = [100, 105, 110, 115, 120]
+    t2 = [101, 106, 110, 114, 119]
+    d1 = [0.0, 1.0, 2.0, 3.0, 4.0]
+    d2 = [5.0, 6.0, 7.0, 8.0, 9.0]
+    d3 = [1.0, 9.0, 44.0, 8.0, 9.0]
+    s1.insert(list(zip(t1, d1)))
+    s2.insert(list(zip(t2, d2)))
+    s3.insert(list(zip(t2, d3)))
+    ss = (
+        btrdb.stream.StreamSet([s1, s2, s3])
+        .filter(start=100, end=121)
+        .windows(width=btrdb.utils.timez.ns_delta(nanoseconds=10))
+    )
+    values_arrow_df = ss.arrow_to_dataframe(agg=["mean", "stddev"])
+    values_non_arrow_df = ss.to_dataframe(agg="all")
+    values_non_arrow_df.index = pd.DatetimeIndex(values_non_arrow_df.index, tz="UTC")
+    new_cols = ["/".join(old_col) for old_col in values_non_arrow_df.columns]
+    values_non_arrow_df.columns = new_cols
+    cols_to_drop = [
+        col
+        for col in values_non_arrow_df.columns
+        if ("count" in col) or ("min" in col) or ("max" in col)
+    ]
+    values_non_arrow_df.drop(columns=cols_to_drop, inplace=True)
+    assert values_arrow_df.equals(values_non_arrow_df)
 
 
 def test_timesnap_backward_extends_range(conn, tmp_collection):
