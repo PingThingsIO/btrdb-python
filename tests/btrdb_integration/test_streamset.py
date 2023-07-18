@@ -1,4 +1,6 @@
+import time
 import logging
+import threading
 from math import isnan, nan
 from uuid import uuid4 as new_uuid
 
@@ -7,6 +9,7 @@ import pytest
 import btrdb
 import btrdb.stream
 from btrdb.utils.timez import currently_as_ns
+
 
 try:
     import pyarrow as pa
@@ -413,3 +416,22 @@ def test_timesnap_forward_restricts_range(conn, tmp_collection):
     assert [1.0, 2.0] == [v.as_py() for v in values[str(s.uuid)]]
     # Same result if skipping past end instead of to end.
     assert values == ss.filter(end=int(2.9 * sec)).arrow_values()
+
+def test_subscriptions(conn, tmp_collection):
+    s1 = conn.create(new_uuid(), tmp_collection, tags={"name": "s1"})
+    s2 = conn.create(new_uuid(), tmp_collection, tags={"name": "s2"})
+    ss = btrdb.stream.StreamSet([s1, s2])
+    def do_inserts():
+        time.sleep(0.5) # XXX not a great way to synchronize in a test.
+        for i in range(5):
+            s1.insert([[currently_as_ns(), float(i)]])
+            s2.insert([[currently_as_ns(), float(i)]])
+    record_generator = ss.subscribe()
+    t = threading.Thread(target=do_inserts)
+    t.start()
+    records = [next(record_generator) for _ in range(10)]
+    uuids = set([sr.uuid for sr in records])
+    values = set([sr.data['value'][0].as_py() for sr in records])
+    assert uuids == {s1.uuid, s2.uuid}
+    assert values == {0.0, 1.0, 2.0, 3.0, 4.0}
+    t.join()

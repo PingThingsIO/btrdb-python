@@ -1990,6 +1990,13 @@ class StreamSetBase(Sequence):
                 )
         return data
 
+    def subscribe(self):
+        """
+        Subscribe to inserts happening to the database as they occur,
+        Returns a generator of named tuples containing (uuid: uuid.UUID, uuid: pyarrow.Table).
+        """
+        return self._btrdb.ep.subscribe(uu_list=[s.uuid for s in self])
+
     def __repr__(self):
         token = "stream" if len(self) == 1 else "streams"
         return "<{}({} {})>".format(self.__class__.__name__, len(self._streams), token)

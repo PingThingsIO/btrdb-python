@@ -28,6 +28,8 @@ import io
 import typing
 import uuid
 
+from collections import namedtuple
+
 from btrdb.exceptions import BTrDBError, check_proto_stat, error_handler
 from btrdb.grpcinterface import btrdb_pb2, btrdb_pb2_grpc
 from btrdb.point import RawPoint
@@ -63,6 +65,18 @@ class Endpoint(object):
             check_proto_stat(result.stat)
             with pa.ipc.open_stream(result.arrowBytes) as reader:
                 yield reader.read_all(), result.versionMajor
+
+    _SubRecord = namedtuple("SubRecord", "uuid data")
+
+    @error_handler
+    def subscribe(self, uu_list):
+        params = btrdb_pb2.SubscriptionParams(
+            uuid=[uu.bytes for uu in uu_list],
+        )
+        for result in self.stub.Subscribe(params):
+            check_proto_stat(result.stat)
+            with pa.ipc.open_stream(result.arrowBytes) as reader:
+                yield self._SubRecord(uuid.UUID(bytes=result.uuid), reader.read_all())
 
     @error_handler
     def arrowMultiValues(self, uu_list, start, end, version_list, snap_periodNS):
