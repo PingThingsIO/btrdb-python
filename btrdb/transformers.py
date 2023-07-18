@@ -216,8 +216,9 @@ def arrow_to_dataframe(
         tmp = tmp_table.select(["time", *usable_cols])
     else:
         tmp = tmp_table
-    df = tmp.to_pandas()
+    df = tmp.to_pandas(date_as_object=False, types_mapper=pd.ArrowDtype)
     df = df.set_index("time")
+    df.index = pd.DatetimeIndex(df.index, tz="UTC")
     return df
 
 
@@ -324,7 +325,7 @@ def arrow_to_polars(streamset, agg=None, name_callable=None):
     arrow_df = arrow_to_dataframe(
         streamset=streamset, agg=agg, name_callable=name_callable
     )
-    return pl.from_pandas(arrow_df, include_index=True)
+    return pl.from_pandas(arrow_df, include_index=True, nan_to_null=False)
 
 
 def arrow_to_arrow_table(streamset):
@@ -391,7 +392,7 @@ def to_polars(streamset, agg="mean", name_callable=None):
         else:
             df.columns = _stream_names(streamset, name_callable)
 
-    return pl.from_pandas(df.reset_index())
+    return pl.from_pandas(df.reset_index(), nan_to_null=False)
 
 
 def to_array(streamset, agg="mean"):
