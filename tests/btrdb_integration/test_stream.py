@@ -61,6 +61,25 @@ def test_arrow_insert_and_values(
     assert data == fetched_data
 
 
+@pytest.mark.parametrize(
+    "merge_policy,duplicates_expected",
+    [("never", True), ("equal", True), ("retain", False), ("replace", False)],
+)
+def test_arrow_insert_duplicate_timestamps(
+    conn,
+    tmp_collection,
+    single_stream_values_arrow_schema,
+    merge_policy,
+    duplicates_expected,
+):
+    s1 = conn.create(new_uuid(), tmp_collection, tags={"name": "s1"})
+    t1 = [100, 105, 110, 110, 120]
+    d1 = [0.0, 1.0, 2.0, 3.0, 4.0]
+    s1.insert(list(zip(t1, d1)), merge=merge_policy)
+    df = s1.arrow_values(start=100, end=121).to_pandas().set_index("time")
+    assert any(df.index.duplicated().tolist()) == duplicates_expected
+
+
 def test_arrow_values_table_schema(
     conn, tmp_collection, single_stream_values_arrow_schema
 ):
