@@ -103,10 +103,6 @@ def test_arrow_values_table_schema(
     assert single_stream_values_arrow_schema.equals(fetched_data.schema)
 
 
-def test_arrow_windows_table_schema(conn, tmp_collection):
-    pass
-
-
 def test_arrow_values_table_schema(
     conn, tmp_collection, single_stream_values_arrow_schema
 ):
@@ -262,9 +258,6 @@ def test_arrow_aligned_windows_vs_aligned_windows(
         tmp["stddev"] = statpt.stddev
         other_method_data.append(tmp)
     other_method_df = pd.DataFrame(other_method_data)
-    print(fetched_df.info())
-    print(other_method_df.info())
-    print(fetched_df.values - other_method_df.values)
     assert fetched_data.schema.equals(single_stream_windows_all_stats_arrow_schema)
     assert fetched_df.equals(other_method_df)
 
