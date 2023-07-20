@@ -79,6 +79,19 @@ class Endpoint(object):
                 yield reader.read_all()
 
     @error_handler
+    def arrowMultiRawValues(self, uu_list, start, end, version_list):
+        params = btrdb_pb2.ArrowMultiRawValuesParams(
+            uuid=[uu.bytes for uu in uu_list],
+            start=start,
+            end=end,
+            versionMajor=[ver for ver in version_list],
+        )
+        for result in self.stub.ArrowMultiRawValues(params):
+            check_proto_stat(result.stat)
+            with pa.ipc.open_stream(result.arrowBytes) as reader:
+                yield uuid.UUID(bytes=result.uuid), reader.read_all()
+
+    @error_handler
     def arrowInsertValues(self, uu: uuid.UUID, values: pa.Table, policy: str):
         policy_map = {
             "never": btrdb_pb2.MergePolicy.NEVER,

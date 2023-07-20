@@ -6,6 +6,7 @@ service BTrDB {
   rpc RawValues(RawValuesParams) returns (stream RawValuesResponse);
   rpc ArrowRawValues(RawValuesParams) returns (stream ArrowRawValuesResponse);
   rpc ArrowMultiValues(ArrowMultiValuesParams) returns (stream ArrowMultiValuesResponse);
+  rpc ArrowMultiRawValues(ArrowMultiRawValuesParams) returns (stream ArrowMultiRawValuesResponse);
   rpc AlignedWindows(AlignedWindowsParams) returns (stream AlignedWindowsResponse);
   rpc ArrowAlignedWindows(AlignedWindowsParams) returns (stream ArrowAlignedWindowsResponse);
   rpc Windows(WindowsParams) returns (stream WindowsResponse);
@@ -60,6 +61,17 @@ message ArrowMultiValuesParams {
 message ArrowMultiValuesResponse {
   Status stat = 1;
   bytes arrowBytes = 2;
+}
+message ArrowMultiRawValuesParams {
+  repeated bytes uuid = 1;
+  repeated uint64 versionMajor = 2;
+  sfixed64 start = 3;
+  sfixed64 end = 4;
+}
+message ArrowMultiRawValuesResponse {
+  Status stat = 1;
+  bytes uuid = 2;
+  bytes arrowBytes = 3;
 }
 message RawPointVec {
   sfixed64 time = 1;

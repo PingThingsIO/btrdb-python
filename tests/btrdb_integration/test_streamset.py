@@ -451,3 +451,29 @@ def test_timesnap_forward_restricts_range(conn, tmp_collection):
     assert [1.0, 2.0] == [v.as_py() for v in values[str(s.uuid)]]
     # Same result if skipping past end instead of to end.
     assert values == ss.filter(end=int(2.9 * sec)).arrow_values()
+
+def test_arrow_values2(conn, tmp_collection):
+    sec = 10**9
+    tv1 = [
+        [1 * sec, 1.1],
+        [2 * sec, 1.2],
+    ]
+    tv2 = [
+        [1 * sec, 2.1],
+        [2 * sec, 2.2],
+    ]
+    tv3 = [
+        [1 * sec, 3.1],
+        [2 * sec, 3.2],
+    ]
+    s1 = conn.create(new_uuid(), tmp_collection, tags={"name": "s1"})
+    s2 = conn.create(new_uuid(), tmp_collection, tags={"name": "s2"})
+    s3 = conn.create(new_uuid(), tmp_collection, tags={"name": "s3"})
+    s1.insert(tv1)
+    s2.insert(tv2)
+    s3.insert(tv3)
+    ss = btrdb.stream.StreamSet([s1, s2, s3]).filter(
+        start=1 * sec, end=3 * sec
+    )
+    values = ss._arrow_values2()
+    assert False

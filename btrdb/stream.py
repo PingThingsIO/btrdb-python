@@ -2090,7 +2090,7 @@ class StreamSetBase(Sequence):
         for stream_data in streamset_data:
             result.append([point[0] for point in stream_data])
         return result
-
+    
     def arrow_values(
         self,
     ):
@@ -2193,6 +2193,25 @@ class StreamSetBase(Sequence):
                     [pa.array([]) for i in range(1 + len(self._streams))], schema=schema
                 )
         return data
+
+    def _arrow_values2(
+            self,
+    ):
+        """Return a list pyarrow tables corresponding to the requested values
+
+        Notes
+        -----
+        ARROW ENABLED SERVERS REQUIRED - CHANGE ME FOR FINAL
+        """
+        params = self._params_from_filters()
+        versions = self._pinned_versions
+        if versions is None:
+            versions = {s.uuid: 0 for s in self}
+        params["uu_list"] = [s.uuid for s in self._streams]
+        params["version_list"] = [versions[s.uuid] for s in self._streams]
+        for (uuid, data) in self._btrdb.ep.arrowMultiRawValues(**params):
+            print(f"XXX: {uuid} {data}")
+        raise Exception("TODO")
 
     def __repr__(self):
         token = "stream" if len(self) == 1 else "streams"
