@@ -23,6 +23,7 @@ import numpy as np
 import pytest
 from pandas import DataFrame, Index, Series
 
+from btrdb.conn import BTrDB
 from btrdb.point import RawPoint, StatPoint
 from btrdb.stream import Stream, StreamSet
 from btrdb.transformers import *
@@ -211,6 +212,7 @@ def statpoint_streamset():
         stream = Mock(Stream)
         type(stream).collection = PropertyMock(return_value="test")
         type(stream).name = PropertyMock(return_value="stream{}".format(idx))
+        stream._btrdb = Mock()
         streams.append(stream)
 
     obj = StreamSet(streams)
@@ -796,7 +798,7 @@ class TestTransformers(object):
         result = [dict(row) for row in reader]
         for item in result:
             for k, v in item.items():
-                if v is "":
+                if v == "":
                     item[k] = None
                 elif "." in v:
                     item[k] = float(v)
