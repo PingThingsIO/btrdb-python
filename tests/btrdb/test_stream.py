@@ -1127,7 +1127,7 @@ class TestStreamSet(object):
         streams = StreamSet([stream1, stream2, stream3])
         assert streams.allow_window == True
 
-        streams.windows(30, 4)
+        streams.windows(30)
         assert streams.allow_window == False
 
         streams = StreamSet([stream1, stream2, stream3])
@@ -1566,10 +1566,10 @@ class TestStreamSet(object):
         Assert windows raises Exception if not allowed
         """
         streams = StreamSet([stream1])
-        streams.windows(8, 22)
+        streams.windows(8)
 
         with pytest.raises(Exception) as exc:
-            streams.windows(10, 20)
+            streams.windows(10)
         assert "window operation is already requested" in str(exc).lower()
 
     def test_windows_returns_self(self, stream1):
@@ -1577,7 +1577,7 @@ class TestStreamSet(object):
         Assert windows returns self
         """
         streams = StreamSet([stream1])
-        result = streams.windows(10, 20)
+        result = streams.windows(10)
         assert result is streams
 
     def test_windows_stores_values(self, stream1):
@@ -1585,7 +1585,7 @@ class TestStreamSet(object):
         Assert windows stores values
         """
         streams = StreamSet([stream1])
-        result = streams.windows(10, 20)
+        result = streams.windows(10)
 
         # assert stores values
         assert result.width == 10
@@ -1610,13 +1610,11 @@ class TestStreamSet(object):
         s2 = Stream(btrdb=BTrDB(endpoint), uuid=uu2)
         versions = {uu1: 11, uu2: 12}
 
-        start, end, width, depth = 1, 100, 1000, 25
+        start, end, width = 1, 100, 1000
         streams = StreamSet([s1, s2])
         streams.pin_versions(versions)
         values = (
-            streams.filter(start=start, end=end)
-            .windows(width=width, depth=depth)
-            .values()
+            streams.filter(start=start, end=end).windows(width=width, depth=0).values()
         )
 
         # assert endpoint calls have correct arguments, version
@@ -1652,14 +1650,10 @@ class TestStreamSet(object):
         s2 = Stream(btrdb=BTrDB(endpoint), uuid=uu2)
         versions = {uu1: 11, uu2: 12}
 
-        start, end, width, depth = 1, 100, 1000, 25
+        start, end, width = 1, 100, 1000
         streams = StreamSet([s1, s2])
         streams.pin_versions(versions)
-        rows = (
-            streams.filter(start=start, end=end)
-            .windows(width=width, depth=depth)
-            .rows()
-        )
+        rows = streams.filter(start=start, end=end).windows(width=width, depth=0).rows()
 
         # assert endpoint calls have correct arguments, version
         expected = [
@@ -1693,7 +1687,7 @@ class TestStreamSet(object):
         Assert that aligned_windows raises Exception if not allowed
         """
         streams = StreamSet([stream1])
-        streams.windows(8, 22)
+        streams.windows(8)
 
         with pytest.raises(Exception) as exc:
             streams.aligned_windows(20)
