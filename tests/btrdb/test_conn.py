@@ -19,8 +19,6 @@ import uuid as uuidlib
 from unittest.mock import Mock, PropertyMock, call, patch
 
 import pytest
-import uuid
-
 
 from btrdb.conn import BTrDB, Connection
 from btrdb.endpoint import Endpoint
@@ -35,7 +33,7 @@ from btrdb.stream import Stream
 
 @pytest.fixture
 def stream1():
-    uu = uuid.UUID("0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a")
+    uu = uuidlib.UUID("0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a")
     stream = Mock(Stream)
     stream.version = Mock(return_value=11)
     stream.uuid = Mock(return_value=uu)
@@ -49,7 +47,7 @@ def stream1():
 
 @pytest.fixture
 def stream2():
-    uu = uuid.UUID("17dbe387-89ea-42b6-864b-f505cdb483f5")
+    uu = uuidlib.UUID("17dbe387-89ea-42b6-864b-f505cdb483f5")
     stream = Mock(Stream)
     stream.version = Mock(return_value=22)
     stream.uuid = Mock(return_value=uu)
@@ -63,7 +61,7 @@ def stream2():
 
 @pytest.fixture
 def stream3():
-    uu = uuid.UUID("17dbe387-89ea-42b6-864b-e2ef0d22a53b")
+    uu = uuidlib.UUID("17dbe387-89ea-42b6-864b-e2ef0d22a53b")
     stream = Mock(Stream)
     stream.version = Mock(return_value=33)
     stream.uuid = Mock(return_value=uu)

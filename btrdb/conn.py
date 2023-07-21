@@ -19,9 +19,9 @@ import json
 import logging
 import os
 import re
-from typing import List
 import uuid as uuidlib
 from concurrent.futures import ThreadPoolExecutor
+from typing import List
 
 import certifi
 import grpc

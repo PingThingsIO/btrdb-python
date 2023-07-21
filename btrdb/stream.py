@@ -17,12 +17,12 @@ Module for Stream and related classes
 import json
 import logging
 import re
-from typing import List
 import uuid as uuidlib
 import warnings
 from collections import deque
 from collections.abc import Sequence
 from copy import deepcopy
+from typing import List
 
 import pyarrow as pa
 
