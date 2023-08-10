@@ -28,6 +28,7 @@ keywords = [
     'btrdb', 'berkeley', 'timeseries', 'database', 'bindings', 'gRPC',
 ]
 dependencies = [
+    "dask",
     "grpcio",
     "grpcio-tools",
     "pytz",
