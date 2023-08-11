@@ -1797,7 +1797,7 @@ class StreamSetBase(Sequence):
                 lambda x: x.str.contains(annotations[x.name], case=False, regex=False)
             ).all(axis=1)
             obj._metadata = obj._metadata[tf]
-        obj._streams = obj._metadata["stream"]
+        obj._streams = obj._metadata["stream"].to_list()
         return obj
 
     def clone(self):
