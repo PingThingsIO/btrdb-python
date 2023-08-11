@@ -5,6 +5,7 @@
 #    pip-compile --output-file=requirements.txt --resolver=backtracking pyproject.toml
 #
 # This file was modified to remove version pins.
+dask
 certifi
     # via btrdb (pyproject.toml)
 grpcio

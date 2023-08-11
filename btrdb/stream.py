@@ -210,7 +210,7 @@ class Stream(object):
             pointwidth = min(
                 pointwidth,
                 pw.from_nanoseconds(to_nanoseconds(end) - to_nanoseconds(start)) - 1,
-                )
+            )
             points = self.aligned_windows(start, end, pointwidth, version)
             return sum([point.count for point, _ in points])
 
@@ -583,7 +583,7 @@ class Stream(object):
         version = 0
         i = 0
         while i < len(data):
-            thisBatch = data[i: i + INSERT_BATCH_SIZE]
+            thisBatch = data[i : i + INSERT_BATCH_SIZE]
             version = self._btrdb.ep.insert(self._uuid, thisBatch, merge)
             i += INSERT_BATCH_SIZE
         return version
@@ -1435,19 +1435,21 @@ class Stream(object):
 ## StreamSet  Classes
 ##########################################################################
 
+
 @delayed
 def get_metadata(stream):
-    columns = ['collection', 'tags', 'annotations', 'stream', 'uuid']
+    columns = ["collection", "tags", "annotations", "stream", "uuid"]
     stream.refresh_metadata()
-    metadata = {c: (getattr(stream, f"_{c}") if c != 'stream' else stream)
-                for c in columns}
+    metadata = {
+        c: (getattr(stream, f"_{c}") if c != "stream" else stream) for c in columns
+    }
     return metadata
+
 
 class StreamSetBase(Sequence):
     """
     A lighweight wrapper around a list of stream objects
     """
-
 
     def __init__(self, streams):
         self._streams = streams
@@ -1467,11 +1469,11 @@ class StreamSetBase(Sequence):
         self.depth = 0
 
         # create a DataFrame to store the metadata for filtering
-        _columns = ['collection', 'tags', 'annotations', 'stream', 'uuid']
         _metadata = compute([get_metadata(s) for s in self._streams])[0]
         _metadata = pd.DataFrame(_metadata)
-        self._metadata = (_metadata.join(pd.json_normalize(_metadata['tags']))
-                          .drop(columns=['tags', 'annotations']))
+        self._metadata = _metadata.join(pd.json_normalize(_metadata["tags"])).drop(
+            columns=["tags", "annotations"]
+        )
 
     @property
     def allow_window(self):
@@ -1735,55 +1737,67 @@ class StreamSetBase(Sequence):
         # filter by collection
         if collection is not None:
             if isinstance(collection, RE_PATTERN):
-                tf = (tf & obj._metadata.collection.str.contains(collection.pattern, case=False, regex=True))
+                tf = tf & obj._metadata.collection.str.contains(
+                    collection.pattern, case=False, regex=True
+                )
             elif isinstance(collection, str):
-                tf = (tf & obj._metadata.collection.str.contains(collection, case=False, regex=False))
+                tf = tf & obj._metadata.collection.str.contains(
+                    collection, case=False, regex=False
+                )
             else:
                 raise BTRDBTypeError("collection must be string or compiled regex")
 
         # filter by name
         if name is not None:
             if isinstance(name, RE_PATTERN):
-                tf = (tf & obj._metadata.name.str.contains(name.pattern, case=False, regex=True))
+                tf = tf & obj._metadata.name.str.contains(
+                    name.pattern, case=False, regex=True
+                )
             elif isinstance(name, str):
-                tf = (tf & obj._metadata.name.str.contains(name, case=False, regex=False))
+                tf = tf & obj._metadata.name.str.contains(name, case=False, regex=False)
             else:
                 raise BTRDBTypeError("name must be string or compiled regex")
 
         # filter by unit
         if unit is not None:
             if isinstance(unit, RE_PATTERN):
-                tf = (tf & obj._metadata.unit.str.contains(unit, case=False, regex=True))
+                tf = tf & obj._metadata.unit.str.contains(
+                    unit.pattern, case=False, regex=True
+                )
             elif isinstance(unit, str):
-                tf = (tf & obj._metadata.name.str.contains(unit, case=False, regex=False))
+                tf = tf & obj._metadata.name.str.contains(unit, case=False, regex=False)
             else:
                 raise BTRDBTypeError("unit must be string or compiled regex")
 
         # filter by tags
         if tags:
-            tf = (tf & obj._metadata.loc[:, obj._metadata.columns.isin(tags.keys())]
-                  .apply(lambda x: x.str.contains(tags[x.name], case=False, regex=False))
-                  .all(axis=1))
+            tf = tf & obj._metadata.loc[
+                :, obj._metadata.columns.isin(tags.keys())
+            ].apply(
+                lambda x: x.str.contains(tags[x.name], case=False, regex=False)
+            ).all(
+                axis=1
+            )
         obj._metadata = obj._metadata[tf]
 
         # filter by annotations
         if annotations:
-            _annotations = pd.json_normalize(obj._metadata['annotations'])
+            _annotations = pd.json_normalize(obj._metadata["annotations"])
             if not _annotations.columns.isin(annotations.keys()).any():
                 raise BTRDBValueError("annotations key not found")
-            _metadata = obj._metadata.join(
-                _annotations,
-                rsuffix='_annotations'
-            ).drop(columns=['annotations'])
+            obj._metadata = obj._metadata.join(
+                _annotations, rsuffix="_annotations"
+            ).drop(columns=["annotations"])
 
-            _columns = list(annotations.keys()) + list(map(lambda s: "".join([s,'_annotations']), annotations.keys()))
+            _columns = list(annotations.keys()) + list(
+                map(lambda s: "".join([s, "_annotations"]), annotations.keys())
+            )
             # filters if the subset of the annotations matches the given annotations
-            tf = (tf
-                  & obj._metadata.loc[:, obj._metadata.columns.isin(_columns)]
-                  .apply(lambda x: x.str.contains(annotations[x.name], case=False, regex=False))
-                  .all(axis=1))
+            tf = tf & obj._metadata.loc[:, obj._metadata.columns.isin(_columns)].apply(
+                lambda x: x.str.contains(annotations[x.name], case=False, regex=False)
+            ).all(axis=1)
             obj._metadata = obj._metadata[tf]
-        obj._streams = obj._metadata['stream']
+        obj._streams = obj._metadata["stream"]
         return obj
 
     def clone(self):
@@ -2195,7 +2209,7 @@ class StreamSetBase(Sequence):
                         pa.field(str(s.uuid), pa.float64(), nullable=False)
                         for s in self._streams
                     ],
-                    )
+                )
                 data = pa.Table.from_arrays(
                     [pa.array([]) for i in range(1 + len(self._streams))], schema=schema
                 )
