@@ -28,6 +28,7 @@ service BTrDB {
   rpc GetMetadataUsage(MetadataUsageParams) returns (MetadataUsageResponse);
   rpc GenerateCSV(GenerateCSVParams) returns (stream GenerateCSVResponse);
   rpc SQLQuery(SQLQueryParams) returns (stream SQLQueryResponse);
+  rpc Subscribe(stream SubscriptionUpdate) returns (stream SubscriptionResp);
   //rpc SetCompactionConfig(SetCompactionConfigParams) returns (SetCompactionConfigResponse);
   //rpc GetCompactionConfig(GetCompactionConfigParams) returns (GetCompactionConfigResponse);
 }
@@ -425,4 +426,20 @@ message ReducedResolutionRange {
   int64 Start = 1;
   int64 End = 2;
   uint32 Resolution = 3;
+}
+
+enum SubscriptionUpdateOp {
+  ADD_UUIDS = 0;
+  REMOVE_UUIDS = 1;
+}
+
+message SubscriptionUpdate {
+  SubscriptionUpdateOp op = 1;
+  repeated bytes uuid = 2;
+}
+
+message SubscriptionResp {
+  Status stat = 1;
+  bytes uuid = 2;
+  bytes arrowBytes = 3;
 }
