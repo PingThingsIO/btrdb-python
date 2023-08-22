@@ -899,7 +899,6 @@ class Stream(object):
         self,
         start,
         end,
-        sorted: bool = False,
         version: int = 0,
         auto_retry=False,
         retries=5,
@@ -918,8 +917,6 @@ class Stream(object):
         end : int or datetime like object
             The end time in nanoseconds for the range to be queried. (see
             :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
-        sorted : bool, default: False
-            Should the table be sorted by the 'time' column?
         version: int, default: 0
             The version of the stream to be queried
         auto_retry: bool, default: False
@@ -961,10 +958,7 @@ class Stream(object):
         tables = list(arrow_and_versions)
         if len(tables) > 0:
             tabs, ver = zip(*tables)
-            if sorted:
-                return pa.concat_tables(tabs).sort_by("time")
-            else:
-                return pa.concat_tables(tabs)
+            return pa.concat_tables(tabs)
         else:
             schema = pa.schema(
                 [
@@ -2159,6 +2153,7 @@ class StreamSetBase(Sequence):
                 data = tablex
             else:
                 data = tablex
+            data = data.sort_by("time")
 
         elif self.width is not None and self.depth is not None:
             # create list of stream.windows data (the windows method should
@@ -2189,6 +2184,7 @@ class StreamSetBase(Sequence):
                 data = tablex
             else:
                 data = tablex
+            data = data.sort_by("time")
         else:
             sampling_freq = params.pop("sampling_frequency", 0)
             period_ns = 0
@@ -2211,7 +2207,7 @@ class StreamSetBase(Sequence):
                 data = pa.Table.from_arrays(
                     [pa.array([]) for i in range(1 + len(self._streams))], schema=schema
                 )
-        return data.sort_by("time")
+        return data
 
     def __repr__(self):
         token = "stream" if len(self) == 1 else "streams"
