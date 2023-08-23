@@ -1050,7 +1050,7 @@ class Stream(object):
         start: int,
         end: int,
         pointwidth: int,
-        sorted: bool = False,
+        sort_time: bool = False,
         version: int = 0,
         auto_retry=False,
         retries=5,
@@ -1083,7 +1083,7 @@ class Stream(object):
             :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
         pointwidth : int, required
             Specify the number of ns between data points (2**pointwidth)
-        sorted : bool, default: False
+        sort_time : bool, default: False
             Should the table be sorted on the 'time' column?
         version : int, default: 0
             Version of the stream to query
@@ -1127,7 +1127,7 @@ class Stream(object):
         )
         if len(tables) > 0:
             tabs, ver = zip(*tables)
-            if sorted:
+            if sort_time:
                 return pa.concat_tables(tabs).sort_by("time")
             else:
                 return pa.concat_tables(tabs)
@@ -1224,7 +1224,7 @@ class Stream(object):
         start: int,
         end: int,
         width: int,
-        sorted: bool = False,
+        sort_time: bool = False,
         version: int = 0,
         auto_retry=False,
         retries=5,
@@ -1243,7 +1243,7 @@ class Stream(object):
             :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
         width : int, required
             The number of nanoseconds in each window.
-        sorted : bool, default: False
+        sort_time : bool, default: False
             Should the table be sorted on the 'time' column.
         version : int, default=0, optional
             The version of the stream to query.
@@ -1295,7 +1295,7 @@ class Stream(object):
         )
         if len(tables) > 0:
             tabs, ver = zip(*tables)
-            if sorted:
+            if sort_time:
                 return pa.concat_tables(tabs).sort_by("time")
             else:
                 return pa.concat_tables(tabs)
