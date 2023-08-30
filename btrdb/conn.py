@@ -60,7 +60,10 @@ class Connection(object):
 
         """
         addrport = addrportstr.split(":", 2)
-        chan_ops = []
+        # 100MB size limit ~ 2500 streams for 5000 points with each point being 64bit
+        # 500MB size limit ~ 13K streams for 5000 points
+        # -1 size limit = no limit of size to send
+        chan_ops = [("grpc.max_receive_message_length", -1)]
 
         if len(addrport) != 2:
             raise ValueError("expecting address:port")
