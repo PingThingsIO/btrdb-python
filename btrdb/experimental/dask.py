@@ -5,10 +5,11 @@ import dask.distributed
 import dask.dataframe
 import pyarrow
 import pandas
+import random
 
 # This process local connection variable is initialized in all
 # dask worker processes by the configure function.
-_btrdb_conn = None
+_btrdb_conns = []
 
 
 def get_btrdb():
@@ -29,12 +30,12 @@ def get_btrdb():
         Ensure that the `configure` function is called to set up the
         BtrDB credentials before calling this function.
     """
-    conn = _btrdb_conn
-    if conn is None:
+    conns = _btrdb_conns
+    if len(conns) == 0:
         raise btrdb.exceptions.ConnectionError(
             "call configure to configure btrdb credentials for the cluster"
         )
-    return conn
+    return random.choice(conns)
 
 
 class BtrdbConnectionPlugin(dask.distributed.WorkerPlugin):
@@ -49,16 +50,20 @@ class BtrdbConnectionPlugin(dask.distributed.WorkerPlugin):
         This plugin should not be used directly, and instead be used via `configure`.
     """
 
-    def __init__(self, endpoints=None, apikey=None):
+    def __init__(self, connections=None, endpoints=None, apikey=None):
+        self._connections = connections
         self._endpoints = endpoints
         self._apikey = apikey
 
     def setup(self, worker):
-        global _btrdb_conn
-        _btrdb_conn = btrdb._connect(endpoints=self._endpoints, apikey=self._apikey)
+        global _btrdb_conns
+        _btrdb_conns = [
+            btrdb._connect(endpoints=self._endpoints, apikey=self._apikey)
+            for i in range(self._connections)
+        ]
 
 
-def configure(client=None, conn_str=None, apikey=None, profile=None):
+def configure(client=None, conn_str=None, apikey=None, profile=None, connections=1):
     """
     Configure a btrdb connection on all worker nodes in the dask cluster.
     """
@@ -70,8 +75,11 @@ def configure(client=None, conn_str=None, apikey=None, profile=None):
             pass
     if client is None:
         # We have a threaded scheduler.
-        global _btrdb_conn
-        _btrdb_conn = btrdb.connect(conn_str=conn_str, apikey=apikey, profile=profile)
+        global _btrdb_conns
+        _btrdb_conns = [
+            btrdb.connect(conn_str=conn_str, apikey=apikey, profile=profile)
+            for i in range(connections)
+        ]
     else:
         if profile is not None:
             creds = btrdb.credentials_by_profile(profile)
@@ -84,7 +92,7 @@ def configure(client=None, conn_str=None, apikey=None, profile=None):
             )
 
         # Configure the distributed scheduler.
-        plugin = BtrdbConnectionPlugin(**creds)
+        plugin = BtrdbConnectionPlugin(connections=connections, **creds)
         client.register_worker_plugin(plugin, name="btrdb_connection")
 
 
