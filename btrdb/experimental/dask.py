@@ -107,7 +107,7 @@ def _stream_as_dataframe_part(uuid, start, end, snap_period, data_column, versio
     if len(values) != 0:
         values = pyarrow.concat_tables([v for v in values])
     else:
-        schema = pa.schema(
+        schema = pyarrow.schema(
             [
                 pyarrow.field(
                     "time", pyarrow.timestamp("ns", tz="UTC"), nullable=False
@@ -115,7 +115,7 @@ def _stream_as_dataframe_part(uuid, start, end, snap_period, data_column, versio
                 pyarrow.field(str(uuid), pyarrow.float64(), nullable=False),
             ]
         )
-        values = pa.Table.from_arrays([pa.array([]), pa.array([])], schema=schema)
+        values = pyarrow.Table.from_arrays([pyarrow.array([]), pyarrow.array([])], schema=schema)
     # XXX ensure this is zero copy.
     values = values.rename_columns(["time", data_column])
     values = values.to_pandas()
