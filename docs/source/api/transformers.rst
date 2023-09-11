@@ -1,3 +1,4 @@
+.. _TransformersDocs:
 btrdb.transformers
 =========================
 

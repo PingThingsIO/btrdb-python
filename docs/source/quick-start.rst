@@ -20,6 +20,14 @@ Connecting to a server is easy with the supplied :code:`connect` function from t
     # connect with API key
     conn = btrdb.connect("192.168.1.101:4411", apikey="123456789123456789")
 
+Get Platform Information
+^^^^^^^^^^^^^^^^^^^^^^^^
+.. code-block:: python
+
+    conn.info()
+
+Refer to :ref:`the connection API documentation page. <Conn info>`
+
 
 Retrieving a Stream
 ----------------------

@@ -27,7 +27,7 @@ from btrdb.version import get_version
 # -- Project information -----------------------------------------------------
 
 project = "btrdb"
-copyright = "2021, Ping Things, Inc."
+copyright = "2023, Ping Things, Inc."
 author = "PingThingsIO"
 
 # The short X.Y version
@@ -104,7 +104,7 @@ html_theme_options = {
     "show_related": False,
     "note_bg": "#FFF59C",
     "description": "A midweight library to converse with the BTrDB database.",
-    "extra_nav_links": {"btrdb": "http://btrdb.io"},
+    "extra_nav_links": {"btrdb": "http://btrdb-python.readthedocs.io"},
     "show_relbars": True,
 }
 

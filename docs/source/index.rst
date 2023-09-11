@@ -42,7 +42,7 @@ your appetite.
       import btrdb
       from btrdb.utils.timez import to_nanoseconds
 
-      # establish connection to server
+      # establish connection to a server
       conn = btrdb.connect("192.168.1.101:4410")
 
       # search for streams and view metadata
@@ -75,27 +75,8 @@ in Github!
    concepts
    working
    explained
-
-
-API Reference
--------------
-
-.. toctree::
-   :maxdepth: 2
-
-   api/package
-   api/conn
-   api/streams
-   api/points
-   api/exceptions
-   api/transformers
-   api/utils-timez
-
-
-Maintainers
------------
-
-* :doc:`maintainers/anaconda`
+   api-index
+   changelog
 
 
 
