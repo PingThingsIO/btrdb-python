@@ -73,6 +73,36 @@ def test_streamset_arrow_values(conn, tmp_collection):
     assert expected_schema.equals(values.schema)
 
 
+def test_streamset_template_schema(conn, tmp_collection):
+    s1 = conn.create(new_uuid(), tmp_collection, tags={"name": "s1"})
+    s2 = conn.create(new_uuid(), tmp_collection, tags={"name": "s2"})
+    t1 = [100, 105, 110, 115, 120]
+    t2 = [101, 106, 110, 114, 119]
+    d1 = [0.0, 1.0, 2.0, 3.0, 4.0]
+    d2 = [5.0, 6.0, 7.0, 8.0, 9.0]
+    s1.insert(list(zip(t1, d1)))
+    s2.insert(list(zip(t2, d2)))
+    schema = pa.schema(
+        [
+            pa.field("t", pa.timestamp("ns", tz="UTC"), nullable=False),
+            pa.field("a", pa.float64(), nullable=False),
+            pa.field("b", pa.float32(), nullable=False),
+        ]
+    )
+    ss = btrdb.stream.StreamSet([s1, s2]).filter(start=100, end=121, schema=schema)
+    expected_times = [100, 101, 105, 106, 110, 114, 115, 119, 120]
+    expected_col1 = [0.0, np.NaN, 1.0, np.NaN, 2.0, np.NaN, 3.0, np.NaN, 4.0]
+    expected_col2 = [np.NaN, 5.0, np.NaN, 6.0, 7.0, 8.0, np.NaN, 9.0, np.NaN]
+    values = ss.arrow_values()
+    times = [t.value for t in values["t"]]
+    col1 = [np.NaN if isnan(v.as_py()) else v.as_py() for v in values["a"]]
+    col2 = [np.NaN if isnan(v.as_py()) else v.as_py() for v in values["b"]]
+    assert times == expected_times
+    assert col1 == expected_col1
+    assert col2 == expected_col2
+    assert schema.equals(values.schema)
+
+
 @pytest.mark.parametrize(
     "name_callable",
     [(None), (lambda s: str(s.uuid)), (lambda s: s.name + "/" + s.collection)],

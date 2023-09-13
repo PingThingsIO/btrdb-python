@@ -55,9 +55,19 @@ class Endpoint(object):
             yield result.values, result.versionMajor
 
     @error_handler
-    def arrowRawValues(self, uu, start, end, version=0):
-        params = btrdb_pb2.RawValuesParams(
-            uuid=uu.bytes, start=start, end=end, versionMajor=version
+    def arrowRawValues(self, uu, start, end, version=0, schema=None):
+        templateBytes = b""
+        if schema is not None:
+            byte_io = io.BytesIO()
+            with pa.ipc.new_stream(sink=byte_io, schema=schema) as writer:
+                pass
+            templateBytes = byte_io.getvalue()
+        params = btrdb_pb2.ArrowRawValuesParams(
+            uuid=uu.bytes,
+            start=start,
+            end=end,
+            versionMajor=version,
+            templateBytes=templateBytes,
         )
         for result in self.stub.ArrowRawValues(params):
             check_proto_stat(result.stat)
@@ -65,13 +75,22 @@ class Endpoint(object):
                 yield reader.read_all(), result.versionMajor
 
     @error_handler
-    def arrowMultiValues(self, uu_list, start, end, version_list, snap_periodNS):
+    def arrowMultiValues(
+        self, uu_list, start, end, version_list, snap_periodNS=None, schema=None
+    ):
+        templateBytes = b""
+        if schema is not None:
+            byte_io = io.BytesIO()
+            with pa.ipc.new_stream(sink=byte_io, schema=schema) as writer:
+                pass
+            templateBytes = byte_io.getvalue()
         params = btrdb_pb2.ArrowMultiValuesParams(
             uuid=[uu.bytes for uu in uu_list],
             start=start,
             end=end,
             versionMajor=[ver for ver in version_list],
             snapPeriodNs=int(snap_periodNS),
+            templateBytes=templateBytes,
         )
         for result in self.stub.ArrowMultiValues(params):
             check_proto_stat(result.stat)

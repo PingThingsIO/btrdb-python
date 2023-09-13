@@ -61,6 +61,23 @@ def test_arrow_insert_and_values(
     assert data == fetched_data
 
 
+def test_arrow_values_template_schema(conn, tmp_collection):
+    s = conn.create(new_uuid(), tmp_collection, tags={"name": "s"})
+    t = currently_as_ns()
+    times = [100, 200, 300, 400]
+    values = [1.0, 2.0, 3.0, 4.0]
+    s.insert(list(zip(times, values)))
+    schema = pa.schema(
+        [
+            pa.field("t", pa.int64(), nullable=False),
+            pa.field("v", pa.float32(), nullable=False),
+        ]
+    )
+    expected = pa.Table.from_arrays([pa.array(times), pa.array(values)], schema=schema)
+    fetched_data = s.arrow_values(start=times[0], end=times[-1] + 1, schema=schema)
+    assert expected == fetched_data
+
+
 @pytest.mark.parametrize(
     "merge_policy,duplicates_expected",
     [("never", True), ("equal", True), ("retain", False), ("replace", False)],

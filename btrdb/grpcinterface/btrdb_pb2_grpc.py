@@ -21,7 +21,7 @@ class BTrDBStub(object):
                 )
         self.ArrowRawValues = channel.unary_stream(
                 '/v5api.BTrDB/ArrowRawValues',
-                request_serializer=btrdb__pb2.RawValuesParams.SerializeToString,
+                request_serializer=btrdb__pb2.ArrowRawValuesParams.SerializeToString,
                 response_deserializer=btrdb__pb2.ArrowRawValuesResponse.FromString,
                 )
         self.ArrowMultiValues = channel.unary_stream(
@@ -306,7 +306,7 @@ def add_BTrDBServicer_to_server(servicer, server):
             ),
             'ArrowRawValues': grpc.unary_stream_rpc_method_handler(
                     servicer.ArrowRawValues,
-                    request_deserializer=btrdb__pb2.RawValuesParams.FromString,
+                    request_deserializer=btrdb__pb2.ArrowRawValuesParams.FromString,
                     response_serializer=btrdb__pb2.ArrowRawValuesResponse.SerializeToString,
             ),
             'ArrowMultiValues': grpc.unary_stream_rpc_method_handler(
@@ -463,7 +463,7 @@ class BTrDB(object):
             timeout=None,
             metadata=None):
         return grpc.experimental.unary_stream(request, target, '/v5api.BTrDB/ArrowRawValues',
-            btrdb__pb2.RawValuesParams.SerializeToString,
+            btrdb__pb2.ArrowRawValuesParams.SerializeToString,
             btrdb__pb2.ArrowRawValuesResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
