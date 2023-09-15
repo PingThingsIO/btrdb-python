@@ -1695,7 +1695,7 @@ class StreamSetBase(Sequence):
             key/value pairs for filtering streams based on tags
         annotations : dict
             key/value pairs for filtering streams based on annotations
-        sampling_frequency : int
+        sampling_frequency : float
             The sampling frequency of the data streams in Hz, set this if you want timesnapped values.
 
         Returns
@@ -2257,9 +2257,7 @@ class StreamFilter(object):
     ):
         self.start = to_nanoseconds(start) if start else None
         self.end = to_nanoseconds(end) if end else None
-        self.sampling_frequency = (
-            int(sampling_frequency) if sampling_frequency else None
-        )
+        self.sampling_frequency = sampling_frequency if sampling_frequency else None
 
         if self.start is None and self.end is None:
             raise BTRDBValueError("A valid `start` or `end` must be supplied")

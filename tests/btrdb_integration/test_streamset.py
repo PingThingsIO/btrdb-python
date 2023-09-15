@@ -1,4 +1,3 @@
-import logging
 import random
 from math import isnan, nan
 from uuid import uuid4 as new_uuid
