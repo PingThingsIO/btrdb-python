@@ -22,6 +22,7 @@ BTrDB focuses on univariate data which opens a host of benefits and is one of
 the reasons BTrDB is able to process incredibly large amounts of data quickly
 and easily.
 
+.. _Points Described:
 Points
 ------------
 Points of data within a time series make up the smallest objects you will be
@@ -40,10 +41,10 @@ value within the stream.
     # view time and value of a single point in the stream
 
     point.time
-    >> 1547241923338098176
+    >>> 1547241923338098176
 
     point.value
-    >> 120.5
+    >>> 120.5
 
 StatPoint
 ^^^^^^^^^^^^
@@ -63,30 +64,37 @@ not need to read the underlying points to return these statistics!
     # view aggregate values for points in a stream
 
     point.time
-    >> 1547241923338098176
+    >>> 1547241923338098176
 
     point.min
-    >> 42.1
+    >>> 42.1
 
     point.mean
-    >> 78.477
+    >>> 78.477
 
     point.max
-    >> 122.4
+    >>> 122.4
 
     point.count
-    >> 18600
+    >>> 18600
 
     point.stddev
-    >> 3.4
+    >>> 3.4
+
+
+Tabular Data
+------------
+In addition to working with the :code:`RawPoint` or :code:`StatPoint` objects, newer versions of the platform now natively support some tabular data formats as well.
+This is enabled for commercial customers and are available using the :code:`stream.arrow_` or :code:`streamset.arrow_` methods.
+Refer to the :ref:`arrow enabled queries page <Arrow Page>` and the :ref:`API docs <API REF>`
 
 
 Streams
 ------------
 Streams represent a single series of time/value pairs.  As such, the database
 can hold an almost unlimited amount of individual streams.  Each stream has a
-`collection` which is similar to a "path" or grouping for multiple streams.  Each
-steam will also have a `name` as well as a `uuid` which is guaranteed to be unique
+:code:`collection` which is similar to a "path" or grouping for multiple streams.  Each
+steam will also have a :code:`name` as well as a :code:`uuid` which is guaranteed to be unique
 across streams.
 
 BTrDB data is versioned such that changes to a given stream (time series) will
@@ -109,26 +117,26 @@ metadata.
 
     # retrieve stream's UUID
     stream.uuid
-    >> UUID("0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a")
+    >>> UUID("0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a")
 
     # retrieve stream's current version
     stream.version()
-    >> 244
+    >>> 244
 
     # retrieve stream tags
     stream.tags()
-    >> {'name': 'L1MAG', 'unit': 'volts', 'ingress': ''}
+    >>> {'name': 'L1MAG', 'unit': 'volts', 'ingress': ''}
 
     # retrieve stream annotations
     stream.annotations()
-    >> {'poc': 'Salvatore McFesterson', 'region': 'northwest', 'state': 'WA'}
+    >>> {'poc': 'Salvatore McFesterson', 'region': 'northwest', 'state': 'WA'}
 
     # loop through points in the stream
     for point, _ in stream.values(end=1547241923338098176, version=133):
       	print(point)
-    >> RawPoint(1500000000100000000, 2.4)
-    >> RawPoint(1500000000200000000, 2.8)
-    >> RawPoint(1500000000300000000, 3.6)
+    >>> RawPoint(1500000000100000000, 2.4)
+    >>> RawPoint(1500000000200000000, 2.8)
+    >>> RawPoint(1500000000300000000, 3.6)
     ...
 
 
@@ -166,3 +174,9 @@ our API docs to see the full list of features provided to you.
         7  1500000000700000000         8.0         NaN
         8  1500000000800000000         NaN         9.0
         9  1500000000900000000        10.0         NaN
+
+
+Apache-Arrow Accelerated Methods
+--------------------------------
+
+* Refer to :ref:`Arrow Page`
