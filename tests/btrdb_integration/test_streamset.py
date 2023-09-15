@@ -1,4 +1,5 @@
 import logging
+import random
 from math import isnan, nan
 from uuid import uuid4 as new_uuid
 
@@ -451,3 +452,29 @@ def test_timesnap_forward_restricts_range(conn, tmp_collection):
     assert [1.0, 2.0] == [v.as_py() for v in values[str(s.uuid)]]
     # Same result if skipping past end instead of to end.
     assert values == ss.filter(end=int(2.9 * sec)).arrow_values()
+
+
+@pytest.mark.parametrize("freq", [(None), (30), (15), (1), (0.1)])
+def test_timesnap_with_different_sampling_frequencies(freq, conn, tmp_collection):
+    # 30hz data
+    data_insert_freq = 30
+    period_for_data = int(1 / data_insert_freq * 1e9)
+    stop = btrdb.utils.timez.currently_as_ns()
+    start = stop - btrdb.utils.timez.ns_delta(minutes=10)
+    t1 = [i for i in range(start, stop - period_for_data, period_for_data)]
+    v1 = [
+        random.random() for _ in range(start, stop - period_for_data, period_for_data)
+    ]
+    s1 = conn.create(new_uuid(), tmp_collection, tags={"name": "s1"})
+    s2 = conn.create(new_uuid(), tmp_collection, tags={"name": "s2"})
+    stset = btrdb.stream.StreamSet([s1, s2])
+    data_map = {s.uuid: pa.table([t1, v1], names=["time", "value"]) for s in stset}
+    stset.arrow_insert(data_map=data_map)
+    df = stset.filter(
+        start=start, end=stop, sampling_frequency=freq
+    ).arrow_to_dataframe()
+    total_points = df.shape[0] * df.shape[1]
+    total_raw_pts = len(v1) * len(stset)
+    expected_frac_of_pts = 1 if freq is None else freq / data_insert_freq
+    actual_frac_of_pts = total_points / total_raw_pts
+    assert np.isclose(expected_frac_of_pts, actual_frac_of_pts, rtol=0.001)
