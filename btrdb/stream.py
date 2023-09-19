@@ -47,7 +47,7 @@ from btrdb.utils.timez import currently_as_ns, to_nanoseconds
 ##########################################################################
 logger = logging.getLogger(__name__)
 IS_DEBUG = logger.isEnabledFor(logging.DEBUG)
-INSERT_BATCH_SIZE = 50000
+INSERT_BATCH_SIZE = 200000
 MINIMUM_TIME = -(16 << 56)
 MAXIMUM_TIME = (48 << 56) - 1
 
