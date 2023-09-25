@@ -1,12 +1,10 @@
 # BTrDB Bindings for Python
 
-These are BTrDB Bindings for Python allowing you painless and productive access to the Berkeley Tree Database (BTrDB).  BTrDB is a time series database focusing on blazing speed with respect to univariate time series data at the nanosecond scale.
-
+These are BTrDB Bindings for Python allowing you painless and productive access to the Berkeley Tree Database (BTrDB). BTrDB is a time series database focusing on blazing speed with respect to univariate time series data at the nanosecond scale.
 
 ## Sample Code
 
-Our goal is to make BTrDB as easy to use as possible, focusing on integration with other tools and the productivity of our users.  In keeping with this we continue to add new features such as easy transformation to numpy arrays, pandas Series, etc.  See the sample code below and then checkout our [documentation](https://btrdb.readthedocs.io/en/latest/) for more in depth instructions.
-
+Our goal is to make BTrDB as easy to use as possible, focusing on integration with other tools and the productivity of our users. In keeping with this we continue to add new features such as easy transformation to numpy arrays, pandas Series, etc. See the sample code below and then checkout our [documentation](https://btrdb.readthedocs.io/en/latest/) for more in depth instructions.
 
     import btrdb
 
@@ -40,8 +38,6 @@ Our goal is to make BTrDB as easy to use as possible, focusing on integration wi
     >> StatPoint(1500000000300000000, 4.0, 5.0, 6.0, 3, 0.816496580927726)
     >> StatPoint(1500000000600000000, 7.0, 8.0, 9.0, 3, 0.816496580927726)
 
-
-
 You can also easily work with a group of streams for when you need to evaluate data across multiple time series or serialize to disk.
 
     from btrdb.utils.timez import to_nanoseconds
@@ -69,17 +65,15 @@ You can also easily work with a group of streams for when you need to evaluate d
         8  1500000000800000000            NaN            9.0
         9  1500000000900000000           10.0            NaN
 
-
 ## Installation
 
-See our documentation on [installing](https://btrdb.readthedocs.io/en/latest/installing.html) the bindings for more detailed instructions.  However, to quickly get started using the latest available versions you can use `pip` to install from pypi with `conda` support coming in the near future.
+See our documentation on [installing](https://btrdb.readthedocs.io/en/latest/installing.html) the bindings for more detailed instructions. However, to quickly get started using the latest available versions you can use `pip` to install from pypi with `conda` support coming in the near future.
 
     $ pip install btrdb
 
-
 ## Tests
 
-This project includes a suite of automated tests based upon [pytest](https://docs.pytest.org/en/latest/).  For your convenience, a `Makefile` has been provided with a target for evaluating the test suite.  Use the following command to run the tests.
+This project includes a suite of automated tests based upon [pytest](https://docs.pytest.org/en/latest/). For your convenience, a `Makefile` has been provided with a target for evaluating the test suite. Use the following command to run the tests.
 
     $ make test
 
@@ -89,13 +83,13 @@ Note that the test suite has additional dependencies that must be installed for 
 
 ## Releases
 
-This codebase uses github actions to control the release process.  To create a new release of the software, run `release.sh` with arguments for the new version as shown below.  Make sure you are in the master branch when running this script.
+This codebase uses github actions to control the release process. To create a new release of the software, run `release.sh` with arguments for the new version as shown below. Make sure you are in the master branch when running this script.
 
 ```
 ./release.sh 5 11 4
 ```
 
-This will tag and push the current commit and github actions will run the test suite, build the package, and push it to pypi.  If any issues are encountered with the automated tests, the build will fail and you will have a tag with no corresponding release.
+This will tag and push the current commit and github actions will run the test suite, build the package, and push it to pypi. If any issues are encountered with the automated tests, the build will fail and you will have a tag with no corresponding release.
 
 After a release is created, you can manually edit the release description through github.
 
@@ -111,4 +105,10 @@ Note that the documentation also requires Sphix and other dependencies to succes
 
 ## Versioning
 
-This codebases uses a form of [Semantic Versioning](http://semver.org/) to structure version numbers.  In general, the major version number will track with the BTrDB codebase to transparently maintain version compatibility.  Planned features between major versions will increment the minor version while any special releases (bug fixes, etc.) will increment the patch number.
+This codebases uses a form of [Semantic Versioning](http://semver.org/) to structure version numbers. In general, the major version number will track with the BTrDB codebase to transparently maintain version compatibility. Planned features between major versions will increment the minor version while any special releases (bug fixes, etc.) will increment the patch number.
+
+## Pre-commit hooks
+
+`pip install pre-commit` and then run
+`pre-commit run --all-files` to comb through changes and make sure they are formatted correctly.
+`pre-commit install` and then run `git commit` to automatically run the pre-commit hooks on every commit.
