@@ -39,7 +39,7 @@ class TestLoadCredentials(object):
 
 
 class TestLoadProfile(object):
-    def setup(self):
+    def setup_method(self):
         for env in ["BTRDB_ENDPOINTS", "BTRDB_PROFILE", "BTRDB_API_KEY"]:
             try:
                 del os.environ[env]
@@ -114,7 +114,7 @@ class TestLoadProfile(object):
 
 
 class TestCredentials(object):
-    def setup(self):
+    def setup_method(self):
         for env in ["BTRDB_ENDPOINTS", "BTRDB_PROFILE", "BTRDB_API_KEY"]:
             try:
                 del os.environ[env]
