@@ -96,14 +96,17 @@ def test_streamset_arrow_windows_vs_windows(conn, tmp_collection, name_callable)
         .windows(width=btrdb.utils.timez.ns_delta(nanoseconds=10))
     )
     values_arrow = ss.arrow_to_dataframe(name_callable=name_callable)
+    values_arrow.set_index("time", inplace=True)
+    values_arrow.index = pd.DatetimeIndex(values_arrow.index)
     values_prev = ss.to_dataframe(name_callable=name_callable).convert_dtypes(
         dtype_backend="pyarrow"
     )
-    values_prev.index = pd.DatetimeIndex(values_prev.index, tz="UTC")
+    values_prev.index = pd.to_datetime(values_prev.index, utc=True)
+    values_prev = values_prev.convert_dtypes(
+        dtype_backend="pyarrow",
+    )
     col_map = {old_col: old_col + "/mean" for old_col in values_prev.columns}
     values_prev = values_prev.rename(columns=col_map)
-    (values_arrow)
-    (values_prev)
     assert values_arrow.equals(values_prev)
 
 
@@ -125,6 +128,8 @@ def test_streamset_arrow_windows_vs_windows_agg_all(conn, tmp_collection):
         .windows(width=btrdb.utils.timez.ns_delta(nanoseconds=10))
     )
     values_arrow = ss.arrow_to_dataframe(name_callable=None, agg=["all"])
+    values_arrow.set_index("time", inplace=True)
+    values_arrow.index = pd.DatetimeIndex(values_arrow.index)
     values_prev = ss.to_dataframe(name_callable=None, agg="all")
     values_prev = values_prev.apply(lambda x: x.astype(str(x.dtype) + "[pyarrow]"))
     values_prev = values_prev.apply(
@@ -145,7 +150,12 @@ def test_streamset_arrow_windows_vs_windows_agg_all(conn, tmp_collection):
         agg=["all", "mean", "trash"], name_callable=lambda x: str(x.uuid)
     )
     assert (
-        len(other_arrow_df.filter(regex="[min,mean,max,count,stddev]").columns) == 3 * 5
+        len(
+            other_arrow_df.filter(
+                regex=".*\/[min,mean,max,count,stddev]", axis=1
+            ).columns
+        )
+        == 3 * 5
     )
 
 
@@ -174,6 +184,8 @@ def test_streamset_arrow_aligned_windows_vs_aligned_windows(
         .windows(width=btrdb.utils.general.pointwidth.from_nanoseconds(10))
     )
     values_arrow = ss.arrow_to_dataframe(name_callable=name_callable)
+    values_arrow.set_index("time", inplace=True)
+    values_arrow.index = pd.DatetimeIndex(values_arrow.index)
     values_prev = ss.to_dataframe(
         name_callable=name_callable
     )  # .convert_dtypes(dtype_backend='pyarrow')
@@ -235,6 +247,7 @@ def test_arrow_streamset_to_dataframe(conn, tmp_collection):
     s2.insert(list(zip(t2, d2)))
     ss = btrdb.stream.StreamSet([s1, s2]).filter(start=100, end=121)
     values = ss.arrow_to_dataframe()
+    values.set_index("time", inplace=True)
     expected_times = [100, 101, 105, 106, 110, 114, 115, 119, 120]
     expected_times = [
         pa.scalar(v, type=pa.timestamp("ns", tz="UTC")).as_py() for v in expected_times
@@ -385,6 +398,8 @@ def test_streamset_windows_aggregates_filter(conn, tmp_collection):
         .windows(width=btrdb.utils.timez.ns_delta(nanoseconds=10))
     )
     values_arrow_df = ss.arrow_to_dataframe(agg=["mean", "stddev"])
+    values_arrow_df.set_index("time", inplace=True)
+    values_arrow_df.index = pd.DatetimeIndex(values_arrow_df.index)
     values_non_arrow_df = ss.to_dataframe(agg="all")
     values_non_arrow_df.index = pd.DatetimeIndex(values_non_arrow_df.index, tz="UTC")
     values_non_arrow_df = values_non_arrow_df.apply(
