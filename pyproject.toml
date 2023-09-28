@@ -4,6 +4,9 @@ version = "5.31.0"
 authors = [
     {name="PingThingsIO", email="support@pingthings.io"},
 ]
+maintainers = [
+    {name="PingThingsIO", email="support@pingthings.io"},
+]
 description = "Bindings to interact with the Berkeley Tree Database using gRPC."
 readme = "README.md"
 license = {file="LICENSE.txt"}
