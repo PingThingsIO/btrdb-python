@@ -68,7 +68,6 @@ all = [
 ]
 
 [project.urls]
-"Homepage" = "https://btrdb.io"
 "Docs" = "https://btrdb.readthedocs.io"
 "Repository" = "https://github.com/pingthingsio/btrdb-python.git"
 
