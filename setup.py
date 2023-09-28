@@ -133,7 +133,6 @@ config = {
     "license": LICENSE,
     "author": AUTHOR,
     "author_email": EMAIL,
-    "url": URL,
     "maintainer": MAINTAINER,
     "maintainer_email": EMAIL,
     "project_urls": {
