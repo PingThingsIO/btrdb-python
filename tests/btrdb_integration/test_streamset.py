@@ -152,7 +152,7 @@ def test_streamset_arrow_windows_vs_windows_agg_all(conn, tmp_collection):
     assert (
         len(
             other_arrow_df.filter(
-                regex=".*\/[min,mean,max,count,stddev]", axis=1
+                regex=r".*\/[min,mean,max,count,stddev]", axis=1
             ).columns
         )
         == 3 * 5
@@ -487,6 +487,7 @@ def test_timesnap_with_different_sampling_frequencies(freq, conn, tmp_collection
     df = stset.filter(
         start=start, end=stop, sampling_frequency=freq
     ).arrow_to_dataframe()
+    df.set_index("time", inplace=True)
     total_points = df.shape[0] * df.shape[1]
     total_raw_pts = len(v1) * len(stset)
     expected_frac_of_pts = 1 if freq is None else freq / data_insert_freq
