@@ -105,6 +105,8 @@ class TestBTrDB(object):
     ##########################################################################
     ## .streams tests
     ##########################################################################
+    # TODO: remove this when removing future warnings from `streams_in_collection`
+    pytestmark = pytest.mark.filterwarnings("ignore::FutureWarning")
 
     def test_streams_raises_err_if_version_not_list(self):
         """
