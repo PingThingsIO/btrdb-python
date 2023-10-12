@@ -25,9 +25,8 @@ from typing import List
 
 import certifi
 import grpc
-from grpc._cython.cygrpc import CompressionAlgorithm
 
-from btrdb.exceptions import InvalidOperation, StreamNotFoundError, retry
+from btrdb.exceptions import InvalidOperation, retry, StreamNotFoundError
 from btrdb.stream import Stream, StreamSet
 from btrdb.utils.conversion import to_uuid
 from btrdb.utils.general import unpack_stream_descriptor
@@ -39,7 +38,6 @@ from btrdb.utils.general import unpack_stream_descriptor
 MIN_TIME = -(16 << 56)
 MAX_TIME = 48 << 56
 MAX_POINTWIDTH = 63
-
 
 ##########################################################################
 ## Classes
@@ -141,18 +139,21 @@ class Connection(object):
                         self, continuation, client_call_details, request
                     ):
                         return continuation(
-                            AuthCallDetails(self.apikey, client_call_details), request
+                            AuthCallDetails(self.apikey, client_call_details),
+                            request
                         )
 
                     def intercept_unary_stream(
                         self, continuation, client_call_details, request
                     ):
                         return continuation(
-                            AuthCallDetails(self.apikey, client_call_details), request
+                            AuthCallDetails(self.apikey, client_call_details),
+                            request
                         )
 
                     def intercept_stream_unary(
-                        self, continuation, client_call_details, request_iterator
+                        self, continuation, client_call_details,
+                        request_iterator
                     ):
                         return continuation(
                             AuthCallDetails(self.apikey, client_call_details),
@@ -160,7 +161,8 @@ class Connection(object):
                         )
 
                     def intercept_stream_stream(
-                        self, continuation, client_call_details, request_iterator
+                        self, continuation, client_call_details,
+                        request_iterator
                     ):
                         return continuation(
                             AuthCallDetails(self.apikey, client_call_details),
@@ -311,7 +313,9 @@ class BTrDB(object):
                     if isinstance(found, list) and len(found) == 1:
                         streams.append(found[0])
                         continue
-                    raise StreamNotFoundError(f"Could not identify stream `{ident}`")
+                    raise StreamNotFoundError(
+                        f"Could not identify stream `{ident}`"
+                    )
 
             raise ValueError(
                 f"Could not identify stream based on `{ident}`.  Identifier must be UUID or collection/name."
@@ -321,7 +325,8 @@ class BTrDB(object):
 
         if versions:
             version_dict = {
-                streams[idx].uuid: versions[idx] for idx in range(len(versions))
+                streams[idx].uuid: versions[idx] for idx in
+                range(len(versions))
             }
             obj.pin_versions(version_dict)
 
@@ -423,7 +428,8 @@ class BTrDB(object):
             "majorVersion": info.majorVersion,
             "minorVersion": info.minorVersion,
             "build": info.build,
-            "proxy": {"proxyEndpoints": [ep for ep in info.proxy.proxyEndpoints]},
+            "proxy": {
+                "proxyEndpoints": [ep for ep in info.proxy.proxyEndpoints]},
         }
 
     def list_collections(self, starts_with=""):
@@ -441,7 +447,8 @@ class BTrDB(object):
         collections: List[str]
 
         """
-        return [c for some in self.ep.listCollections(starts_with) for c in some]
+        return [c for some in self.ep.listCollections(starts_with) for c in
+                some]
 
     def _list_unique_tags_annotations(self, key, collection):
         """
