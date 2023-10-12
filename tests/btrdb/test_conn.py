@@ -16,7 +16,7 @@ Testing package for the btrdb connection module
 ##########################################################################
 
 import uuid as uuidlib
-from unittest.mock import Mock, PropertyMock, call, patch
+from unittest.mock import call, Mock, patch, PropertyMock
 
 import pytest
 
@@ -25,6 +25,7 @@ from btrdb.endpoint import Endpoint
 from btrdb.exceptions import *
 from btrdb.grpcinterface import btrdb_pb2
 from btrdb.stream import Stream
+
 
 ##########################################################################
 ## Fixtures
@@ -40,7 +41,9 @@ def stream1():
     type(stream).collection = PropertyMock(return_value="fruits/apple")
     type(stream).name = PropertyMock(return_value="gala")
     stream.tags = Mock(return_value={"name": "gala", "unit": "volts"})
-    stream.annotations = Mock(return_value=({"owner": "ABC", "color": "red"}, 11))
+    stream.annotations = Mock(
+        return_value=({"owner": "ABC", "color": "red"}, 11)
+    )
     stream._btrdb = Mock()
     return stream
 
@@ -54,7 +57,9 @@ def stream2():
     type(stream).collection = PropertyMock(return_value="fruits/orange")
     type(stream).name = PropertyMock(return_value="blood")
     stream.tags = Mock(return_value={"name": "blood", "unit": "amps"})
-    stream.annotations = Mock(return_value=({"owner": "ABC", "color": "orange"}, 22))
+    stream.annotations = Mock(
+        return_value=({"owner": "ABC", "color": "orange"}, 22)
+    )
     stream._btrdb = Mock()
     return stream
 
@@ -68,7 +73,9 @@ def stream3():
     type(stream).collection = PropertyMock(return_value="fruits/banana")
     type(stream).name = PropertyMock(return_value="yellow")
     stream.tags = Mock(return_value={"name": "yellow", "unit": "watts"})
-    stream.annotations = Mock(return_value=({"owner": "ABC", "color": "yellow"}, 33))
+    stream.annotations = Mock(
+        return_value=({"owner": "ABC", "color": "yellow"}, 33)
+    )
     stream._btrdb = Mock()
     return stream
 
@@ -252,19 +259,25 @@ class TestBTrDB(object):
         to the endpoint method
         """
         descriptor = Mock()
-        type(descriptor).uuid = PropertyMock(return_value=uuidlib.uuid4().bytes)
+        type(descriptor).uuid = PropertyMock(
+            return_value=uuidlib.uuid4().bytes
+        )
         type(descriptor).collection = PropertyMock(return_value="fruit/apple")
         type(descriptor).propertyVersion = PropertyMock(return_value=22)
-        mock_util.side_effect = [({"name": "gala"}, {}), ({"name": "fuji"}, {})]
+        mock_util.side_effect = [({"name": "gala"}, {}),
+                                 ({"name": "fuji"}, {})]
 
         endpoint = Mock(Endpoint)
-        endpoint.lookupStreams = Mock(side_effect=[[[descriptor]], [[descriptor]]])
+        endpoint.lookupStreams = Mock(
+            side_effect=[[[descriptor]], [[descriptor]]]
+        )
 
         conn = BTrDB(endpoint)
         tags = {"unit": "volts"}
         annotations = {"size": "large"}
         streams = conn.streams_in_collection(
-            "a", "b", is_collection_prefix=False, tags=tags, annotations=annotations
+            "a", "b", is_collection_prefix=False, tags=tags,
+            annotations=annotations
         )
 
         assert streams[0].name == "gala"
