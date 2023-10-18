@@ -30,7 +30,7 @@ import uuid
 import grpc
 import asyncio
 
-from btrdb.exceptions import BTrDBError, check_proto_stat, error_handler
+from btrdb.exceptions import BTrDBError, check_proto_stat, error_handler, handle_grpc_error
 from btrdb.grpcinterface import btrdb_pb2, btrdb_pb2_grpc
 from btrdb.point import RawPoint
 from btrdb.utils.general import unpack_stream_descriptor
