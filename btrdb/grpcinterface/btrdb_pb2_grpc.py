@@ -69,6 +69,11 @@ class BTrDBStub(object):
                 request_serializer=btrdb__pb2.CreateParams.SerializeToString,
                 response_deserializer=btrdb__pb2.CreateResponse.FromString,
                 )
+        self.CreateMany = channel.unary_unary(
+                '/v5api.BTrDB/CreateMany',
+                request_serializer=btrdb__pb2.CreateManyParams.SerializeToString,
+                response_deserializer=btrdb__pb2.CreateResponse.FromString,
+                )
         self.ListCollections = channel.unary_stream(
                 '/v5api.BTrDB/ListCollections',
                 request_serializer=btrdb__pb2.ListCollectionsParams.SerializeToString,
@@ -205,6 +210,12 @@ class BTrDBServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Create(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateMany(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -352,6 +363,11 @@ def add_BTrDBServicer_to_server(servicer, server):
             'Create': grpc.unary_unary_rpc_method_handler(
                     servicer.Create,
                     request_deserializer=btrdb__pb2.CreateParams.FromString,
+                    response_serializer=btrdb__pb2.CreateResponse.SerializeToString,
+            ),
+            'CreateMany': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateMany,
+                    request_deserializer=btrdb__pb2.CreateManyParams.FromString,
                     response_serializer=btrdb__pb2.CreateResponse.SerializeToString,
             ),
             'ListCollections': grpc.unary_stream_rpc_method_handler(
@@ -617,6 +633,23 @@ class BTrDB(object):
             metadata=None):
         return grpc.experimental.unary_unary(request, target, '/v5api.BTrDB/Create',
             btrdb__pb2.CreateParams.SerializeToString,
+            btrdb__pb2.CreateResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def CreateMany(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/v5api.BTrDB/CreateMany',
+            btrdb__pb2.CreateManyParams.SerializeToString,
             btrdb__pb2.CreateResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

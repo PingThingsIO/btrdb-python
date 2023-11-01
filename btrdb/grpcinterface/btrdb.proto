@@ -14,6 +14,7 @@ service BTrDB {
   rpc SetStreamAnnotations(SetStreamAnnotationsParams) returns (SetStreamAnnotationsResponse);
   rpc SetStreamTags(SetStreamTagsParams) returns (SetStreamTagsResponse);
   rpc Create(CreateParams) returns (CreateResponse);
+  rpc CreateMany(CreateManyParams) returns (CreateResponse);
   rpc ListCollections(ListCollectionsParams) returns (stream ListCollectionsResponse);
   rpc LookupStreams(LookupStreamsParams) returns (stream LookupStreamsResponse);
   rpc Nearest(NearestParams) returns (NearestResponse);
@@ -147,6 +148,9 @@ message CreateParams {
   string collection = 2;
   repeated KeyOptValue tags = 3;
   repeated KeyOptValue annotations = 4;
+}
+message CreateManyParams {
+  repeated CreateParams params = 1;
 }
 message CreateResponse {
   Status stat = 1;
