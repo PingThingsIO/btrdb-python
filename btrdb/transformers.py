@@ -213,7 +213,7 @@ def arrow_to_dataframe(streamset, agg=None, name_callable=None) -> pd.DataFrame:
     else:
         tmp = tmp_table
     return tmp.to_pandas(date_as_object=False, types_mapper=pd.ArrowDtype).set_index(
-        'time'
+        "time"
     )
 
 
