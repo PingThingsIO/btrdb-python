@@ -14,7 +14,7 @@ an API key will raise an exception.
 Connecting to servers
 ---------------------------
 
-The btrdb library comes with a high level :code:`connnect` function to interface
+The btrdb library comes with a high level :code:`connect` function to interface
 with a BTrDB server.  Upon successfully connecting, you will be returned a
 :code:`BTrDB` object which is the starting point for all of your server
 interactions.

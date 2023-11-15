@@ -138,18 +138,13 @@ def arrow_to_series(streamset, agg="mean", name_callable=None):
     return [arrow_df[col] for col in arrow_df]
 
 
-def arrow_to_dataframe(
-    streamset, columns=None, agg=None, name_callable=None
-) -> pd.DataFrame:
+def arrow_to_dataframe(streamset, agg=None, name_callable=None) -> pd.DataFrame:
     """
     Returns a Pandas DataFrame object indexed by time and using the values of a
     stream for each column.
 
     Parameters
     ----------
-    columns: sequence
-        column names to use for DataFrame.  Deprecated and not compatible with name_callable.
-
     agg : List[str], default: ["mean"]
         Specify the StatPoint fields (e.g. aggregating function) to create the dataframe
         from. Must be one or more of "min", "mean", "max", "count", "stddev", or "all". This
@@ -174,13 +169,6 @@ def arrow_to_dataframe(
     except ImportError as err:
         raise ImportError(
             f"Please install Pandas and pyarrow to use this transformation function. ErrorMessage: {err}"
-        )
-    # deprecation warning added in v5.8
-    if columns:
-        warn(
-            "the columns argument is deprecated and will be removed in a future release",
-            DeprecationWarning,
-            stacklevel=2,
         )
 
     if agg is None:
@@ -224,22 +212,16 @@ def arrow_to_dataframe(
         tmp = tmp_table.select(["time", *usable_cols])
     else:
         tmp = tmp_table
-    df = tmp.to_pandas(date_as_object=False, types_mapper=pd.ArrowDtype)
-    df = df.set_index("time")
-    df.index = pd.DatetimeIndex(df.index, tz="UTC")
-    return df
+    return tmp.to_pandas(date_as_object=False, types_mapper=pd.ArrowDtype)
 
 
-def to_dataframe(streamset, columns=None, agg="mean", name_callable=None):
+def to_dataframe(streamset, agg="mean", name_callable=None):
     """
     Returns a Pandas DataFrame object indexed by time and using the values of a
     stream for each column.
 
     Parameters
     ----------
-    columns: sequence
-        column names to use for DataFrame.  Deprecated and not compatible with name_callable.
-
     agg : str, default: "mean"
         Specify the StatPoint field (e.g. aggregating function) to create the Series
         from. Must be one of "min", "mean", "max", "count", "stddev", or "all". This
@@ -255,14 +237,6 @@ def to_dataframe(streamset, columns=None, agg="mean", name_callable=None):
         import pandas as pd
     except ImportError:
         raise ImportError("Please install Pandas to use this transformation function.")
-
-    # deprecation warning added in v5.8
-    if columns:
-        warn(
-            "the columns argument is deprecated and will be removed in a future release",
-            DeprecationWarning,
-            stacklevel=2,
-        )
 
     # TODO: allow this at some future point
     if agg == "all" and name_callable is not None:
@@ -291,7 +265,7 @@ def to_dataframe(streamset, columns=None, agg="mean", name_callable=None):
             ]
             df.columns = pd.MultiIndex.from_tuples(stream_names)
         else:
-            df.columns = columns if columns else _stream_names(streamset, name_callable)
+            df.columns = _stream_names(streamset, name_callable)
 
     return df
 
@@ -667,6 +641,8 @@ class StreamSetTransformer(object):
 
     to_polars = to_polars
     arrow_to_polars = arrow_to_polars
+
+    arrow_to_arrow_table = arrow_to_arrow_table
 
     to_csv = to_csv
     to_table = to_table
