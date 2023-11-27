@@ -212,7 +212,9 @@ def arrow_to_dataframe(streamset, agg=None, name_callable=None) -> pd.DataFrame:
         tmp = tmp_table.select(["time", *usable_cols])
     else:
         tmp = tmp_table
-    return tmp.to_pandas(date_as_object=False, types_mapper=pd.ArrowDtype)
+    return tmp.to_pandas(date_as_object=False, types_mapper=pd.ArrowDtype).set_index(
+        "time"
+    )
 
 
 def to_dataframe(streamset, agg="mean", name_callable=None):
