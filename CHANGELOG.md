@@ -1,4 +1,12 @@
 # Changelog
+
+## 5.31.1
+### What's Changed
+* Sort tables by time by default for any `pyarrow` tables. by @justinGilmer in
+* Fix deprecation warnings for pip installations. by @jleifnf in
+
+## 5.31.0
+
 ## 5.30.2
 ### What's Changed
 * Update readthedocs to new yaml for testing. by @justinGilmer in https://github.com/PingThingsIO/btrdb-python/pull/40
