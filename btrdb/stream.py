@@ -1603,7 +1603,6 @@ class StreamSetBase(Sequence):
             if point is not None:
                 earliest.append(point[0])
             else:
-                # add RawPoint with None as timestamp and value
                 earliest.append(None)
 
         return tuple(earliest)
@@ -1634,7 +1633,6 @@ class StreamSetBase(Sequence):
             if point is not None:
                 latest.append(point[0])
             else:
-                # add RawPoint with None as timestamp and value
                 latest.append(None)
 
         return tuple(latest)
