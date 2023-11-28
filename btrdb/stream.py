@@ -1587,8 +1587,11 @@ class StreamSetBase(Sequence):
             lambda s: s.nearest(start, version=versions.get(s.uuid, 0), backward=False),
             self._streams,
         )
-        for point, _ in earliest_points_gen:
-            earliest.append(point)
+        for point in earliest_points_gen:
+            if point is not None:
+                earliest.append(point[0])
+            else:
+                earliest.append(None)
 
         return tuple(earliest)
 
@@ -1614,8 +1617,11 @@ class StreamSetBase(Sequence):
             lambda s: s.nearest(start, version=versions.get(s.uuid, 0), backward=True),
             self._streams,
         )
-        for point, _ in latest_points_gen:
-            latest.append(point)
+        for point in latest_points_gen:
+            if point is not None:
+                latest.append(point[0])
+            else:
+                latest.append(None)
 
         return tuple(latest)
 
