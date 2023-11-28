@@ -100,7 +100,6 @@ def error_handler(fn):
 
     return wrap
 
-
 ##########################################################################
 ## gRPC error handling
 ##########################################################################
@@ -147,7 +146,6 @@ def check_proto_stat(stat):
         elif code in BTRDB_SERVER_ERRORS:
             raise BTRDBServerError(stat.msg)
         raise BTrDBError(stat.msg)
-
 
 ##########################################################################
 ## BTrDB Exceptions

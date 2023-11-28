@@ -27,8 +27,10 @@
 import io
 import typing
 import uuid
+import grpc
+import asyncio
 
-from btrdb.exceptions import BTrDBError, check_proto_stat, error_handler
+from btrdb.exceptions import BTrDBError, check_proto_stat, error_handler, handle_grpc_error
 from btrdb.grpcinterface import btrdb_pb2, btrdb_pb2_grpc
 from btrdb.point import RawPoint
 from btrdb.utils.general import unpack_stream_descriptor
@@ -221,8 +223,7 @@ class Endpoint(object):
         result = self.stub.SetStreamTags(params)
         check_proto_stat(result.stat)
 
-    @error_handler
-    def create(self, uu, collection, tags, annotations):
+    def _create_params(self, uu, collection, tags, annotations):
         tagkvlist = []
         for k, v in tags.items():
             kv = btrdb_pb2.KeyOptValue(key=k, val=btrdb_pb2.OptValue(value=v))
@@ -231,11 +232,41 @@ class Endpoint(object):
         for k, v in annotations.items():
             kv = btrdb_pb2.KeyOptValue(key=k, val=btrdb_pb2.OptValue(value=v))
             annkvlist.append(kv)
-        params = btrdb_pb2.CreateParams(
+        return btrdb_pb2.CreateParams(
             uuid=uu.bytes, collection=collection, tags=tagkvlist, annotations=annkvlist
         )
+
+    @error_handler
+    def create(self, uu, collection, tags, annotations):
+        params = self._create_params(uu, collection, tags, annotations)
         result = self.stub.Create(params)
         check_proto_stat(result.stat)
+
+    async def create_async(self, uu, collection, tags, annotations):
+        loop = asyncio.get_running_loop()
+        params = self._create_params(uu, collection, tags, annotations)
+        fut = self.stub.Create.future(params)
+        async_fut = loop.create_future()
+
+        def async_done_cb(async_fut):
+            if async_fut.cancelled():
+                fut.cancel()
+
+        def done_cb(fut):
+            if fut.cancelled():
+                return
+            try:
+                try: # XXX it would be nice to avoid this double try nesting.
+                    result = fut.result()
+                    loop.call_soon_threadsafe(async_fut.set_result, result)
+                except grpc.RpcError as e:
+                    handle_grpc_error(e)
+            except Exception as e:
+                loop.call_soon_threadsafe(async_fut.set_exception, e)
+
+        fut.add_done_callback(done_cb)
+        async_fut.add_done_callback(async_done_cb)
+        return await async_fut
 
     @error_handler
     def listCollections(self, prefix):
