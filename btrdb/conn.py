@@ -579,6 +579,7 @@ class BTrDB(object):
                             property_version=desc.propertyVersion,
                         )
                     )
+        # TODO: In future release update this method to return a streamset object.
         warn(
             "StreamSet will be returned in a future release.",
             FutureWarning,
