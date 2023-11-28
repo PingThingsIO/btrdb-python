@@ -22,6 +22,7 @@ import re
 import uuid as uuidlib
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
+from warnings import warn
 
 import certifi
 import grpc
@@ -578,7 +579,12 @@ class BTrDB(object):
                             property_version=desc.propertyVersion,
                         )
                     )
-
+        # TODO: In future release update this method to return a streamset object.
+        warn(
+            "StreamSet will be returned in a future release.",
+            FutureWarning,
+            stacklevel=2,
+        )
         return result
 
     @retry
