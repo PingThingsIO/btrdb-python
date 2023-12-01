@@ -42,7 +42,7 @@ def batched(iterable: Iterable[Any], n: int) -> Generator[Any, Any, Any]:
     Returns a generator the yields tuple batches of data from an iterable
     """
     if n < 1:
-        raise ValueError('n must be at least one')
+        raise ValueError("n must be at least one")
     my_iter = iter(iterable)
     while batch := tuple(itertools.islice(my_iter, n)):
         yield batch

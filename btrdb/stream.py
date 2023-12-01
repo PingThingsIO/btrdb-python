@@ -2198,6 +2198,7 @@ class StreamSetBase(Sequence):
             if sampling_freq > 0:
                 period_ns = _to_period_ns(sampling_freq)
             from btrdb.utils.general import batched
+
             params["snap_periodNS"] = period_ns
             data = None
             # Batching the multistream queries is a stop gap to prevent
