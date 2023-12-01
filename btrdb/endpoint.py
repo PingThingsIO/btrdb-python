@@ -386,3 +386,25 @@ class Endpoint(object):
         for page in self.stub.SQLQuery(request):
             check_proto_stat(page.stat)
             yield page.SQLQueryRow
+
+    @error_handler
+    def subscribe(self, update_queue):
+        def updates():
+            while True:
+                update = update_queue.get()
+                if update is None:
+                    return
+                (to_add, to_remove) = update
+                if len(to_add) != 0:
+                    yield btrdb_pb2.SubscriptionUpdate(
+                        op=0, uuid=[uu.bytes for uu in to_add]
+                    )
+                if len(to_remove) != 0:
+                    yield btrdb_pb2.SubscriptionUpdate(
+                        op=1, uuid=[uu.bytes for uu in to_remove]
+                    )
+
+        for response in self.stub.Subscribe(updates()):
+            check_proto_stat(response.stat)
+            with pa.ipc.open_stream(response.arrowBytes) as reader:
+                yield uuid.UUID(bytes=response.uuid), reader.read_all()

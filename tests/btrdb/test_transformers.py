@@ -601,7 +601,7 @@ class TestTransformers(object):
 
     def test_to_series_name_lambda(self, streamset):
         """
-        assert to_dateframe uses name lambda
+        assert to_series uses name lambda
         """
         result = streamset.to_series(name_callable=lambda s: s.name)
         assert [s.name for s in result] == ["stream0", "stream1", "stream2", "stream3"]
@@ -691,23 +691,16 @@ class TestTransformers(object):
         df.set_index("time", inplace=True)
         assert to_dataframe(streamset).equals(df)
 
-    def test_to_dataframe_column_issues_warning(self, statpoint_streamset):
+    def test_to_dataframe_column_issues_error(self, statpoint_streamset):
         """
-        assert to_dateframe with column argument issues warning
+        assert to_dateframe with column argument issues error
         """
         columns = ["test/cats", "test/dogs", "test/horses", "test/fishes"]
-        with pytest.deprecated_call():
+        with pytest.raises(TypeError) as unexpected_key_err:
             statpoint_streamset.to_dataframe(columns=columns)
-
-    def test_to_dataframe_column(self, statpoint_streamset):
-        """
-        assert to_dateframe with column argument actually renames columns
-        """
-        columns = ["test/cats", "test/dogs", "test/horses", "test/fishes"]
-        with pytest.deprecated_call():
-            df = statpoint_streamset.to_dataframe(columns=columns)
-
-        assert df.columns.tolist() == columns
+        assert "got an unexpected keyword argument 'columns'" in str(
+            unexpected_key_err.value
+        )
 
     def test_to_dataframe_multindex(self, statpoint_streamset):
         """

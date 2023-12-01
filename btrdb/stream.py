@@ -1052,7 +1052,6 @@ class Stream(object):
         start: int,
         end: int,
         pointwidth: int,
-        sort_time: bool = False,
         version: int = 0,
         auto_retry=False,
         retries=5,
@@ -1085,8 +1084,6 @@ class Stream(object):
             :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
         pointwidth : int, required
             Specify the number of ns between data points (2**pointwidth)
-        sort_time : bool, default: False
-            Should the table be sorted on the 'time' column?
         version : int, default: 0
             Version of the stream to query
         auto_retry: bool, default: False
@@ -1129,10 +1126,7 @@ class Stream(object):
         )
         if len(tables) > 0:
             tabs, ver = zip(*tables)
-            if sort_time:
-                return pa.concat_tables(tabs).sort_by("time")
-            else:
-                return pa.concat_tables(tabs)
+            return pa.concat_tables(tabs).sort_by("time")
         else:
             schema = pa.schema(
                 [
@@ -1226,7 +1220,6 @@ class Stream(object):
         start: int,
         end: int,
         width: int,
-        sort_time: bool = False,
         version: int = 0,
         auto_retry=False,
         retries=5,
@@ -1245,8 +1238,6 @@ class Stream(object):
             :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
         width : int, required
             The number of nanoseconds in each window.
-        sort_time : bool, default: False
-            Should the table be sorted on the 'time' column.
         version : int, default=0, optional
             The version of the stream to query.
         auto_retry: bool, default: False
@@ -1297,10 +1288,7 @@ class Stream(object):
         )
         if len(tables) > 0:
             tabs, ver = zip(*tables)
-            if sort_time:
-                return pa.concat_tables(tabs).sort_by("time")
-            else:
-                return pa.concat_tables(tabs)
+            return pa.concat_tables(tabs).sort_by("time")
         else:
             schema = pa.schema(
                 [
@@ -1600,8 +1588,11 @@ class StreamSetBase(Sequence):
             lambda s: s.nearest(start, version=versions.get(s.uuid, 0), backward=False),
             self._streams,
         )
-        for point, _ in earliest_points_gen:
-            earliest.append(point)
+        for point in earliest_points_gen:
+            if point is not None:
+                earliest.append(point[0])
+            else:
+                earliest.append(None)
 
         return tuple(earliest)
 
@@ -1627,8 +1618,11 @@ class StreamSetBase(Sequence):
             lambda s: s.nearest(start, version=versions.get(s.uuid, 0), backward=True),
             self._streams,
         )
-        for point, _ in latest_points_gen:
-            latest.append(point)
+        for point in latest_points_gen:
+            if point is not None:
+                latest.append(point[0])
+            else:
+                latest.append(None)
 
         return tuple(latest)
 
@@ -2161,7 +2155,6 @@ class StreamSetBase(Sequence):
                 data = tablex
             else:
                 data = tablex
-            data = data.sort_by("time")
 
         elif self.width is not None and self.depth is not None:
             # create list of stream.windows data (the windows method should
@@ -2192,7 +2185,6 @@ class StreamSetBase(Sequence):
                 data = tablex
             else:
                 data = tablex
-            data = data.sort_by("time")
         else:
             sampling_freq = params.pop("sampling_frequency", 0)
             period_ns = 0
@@ -2229,7 +2221,7 @@ class StreamSetBase(Sequence):
             data = pa.Table.from_arrays(
                 [pa.array([]) for i in range(1 + len(self._streams))], schema=schema
             )
-        return data
+        return data.sort_by("time")
 
     def __repr__(self):
         token = "stream" if len(self) == 1 else "streams"
