@@ -22,24 +22,18 @@ import warnings
 from collections import deque
 from collections.abc import Sequence
 from copy import deepcopy
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 import pyarrow as pa
 
-from btrdb.exceptions import (
-    BTrDBError,
-    BTRDBTypeError,
-    BTRDBValueError,
-    InvalidCollection,
-    InvalidOperation,
-    NoSuchPoint,
-    StreamNotFoundError,
-    retry,
-)
+from btrdb.exceptions import (BTrDBError, BTRDBTypeError, BTRDBValueError,
+                              InvalidCollection, InvalidOperation, NoSuchPoint,
+                              StreamNotFoundError, retry)
 from btrdb.point import RawPoint, StatPoint
 from btrdb.transformers import _STAT_PROPERTIES, StreamSetTransformer
 from btrdb.utils.buffer import PointBuffer
 from btrdb.utils.conversion import AnnotationDecoder, AnnotationEncoder
+from btrdb.utils.general import batched
 from btrdb.utils.general import pointwidth as pw
 from btrdb.utils.timez import currently_as_ns, to_nanoseconds
 
@@ -2197,7 +2191,6 @@ class StreamSetBase(Sequence):
             period_ns = 0
             if sampling_freq > 0:
                 period_ns = _to_period_ns(sampling_freq)
-            from btrdb.utils.general import batched
 
             params["snap_periodNS"] = period_ns
             data = None

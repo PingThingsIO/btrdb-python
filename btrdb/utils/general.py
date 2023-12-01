@@ -14,9 +14,8 @@ General utilities for btrdb bindings
 """
 
 import itertools
-from typing import Any, Generator
 from collections.abc import Iterable
-
+from typing import Any, Generator
 
 ##########################################################################
 ## Functions
