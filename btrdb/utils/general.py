@@ -15,7 +15,6 @@ General utilities for btrdb bindings
 
 import itertools
 from collections.abc import Iterable
-from typing import Any, Generator
 
 ##########################################################################
 ## Functions
@@ -36,7 +35,7 @@ def unpack_stream_descriptor(desc):
     return tags, anns
 
 
-def batched(iterable: Iterable[Any], n: int) -> Generator[Any, Any, Any]:
+def batched(iterable, n):
     """
     Returns a generator the yields tuple batches of data from an iterable
     """
