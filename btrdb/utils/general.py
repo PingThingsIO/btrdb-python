@@ -13,6 +13,11 @@
 General utilities for btrdb bindings
 """
 
+import itertools
+from typing import Any, Generator
+from collections.abc import Iterable
+
+
 ##########################################################################
 ## Functions
 ##########################################################################
@@ -30,6 +35,17 @@ def unpack_stream_descriptor(desc):
     for ann in desc.annotations:
         anns[ann.key] = ann.val.value
     return tags, anns
+
+
+def batched(iterable: Iterable[Any], n: int) -> Generator[Any, Any, Any]:
+    """
+    Returns a generator the yields tuple batches of data from an iterable
+    """
+    if n < 1:
+        raise ValueError('n must be at least one')
+    my_iter = iter(iterable)
+    while batch := tuple(itertools.islice(my_iter, n)):
+        yield batch
 
 
 ##########################################################################

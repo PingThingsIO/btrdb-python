@@ -67,10 +67,10 @@ class Endpoint(object):
     @error_handler
     def arrowMultiValues(self, uu_list, start, end, version_list, snap_periodNS):
         params = btrdb_pb2.ArrowMultiValuesParams(
-            uuid=[uu.bytes for uu in uu_list],
+            uuid=uu_list,
             start=start,
             end=end,
-            versionMajor=[ver for ver in version_list],
+            versionMajor=version_list,
             snapPeriodNs=int(snap_periodNS),
         )
         for result in self.stub.ArrowMultiValues(params):

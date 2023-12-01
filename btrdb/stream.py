@@ -22,7 +22,7 @@ import warnings
 from collections import deque
 from collections.abc import Sequence
 from copy import deepcopy
-from typing import List
+from typing import List, Dict, Any
 
 import pyarrow as pa
 
@@ -2197,23 +2197,37 @@ class StreamSetBase(Sequence):
             period_ns = 0
             if sampling_freq > 0:
                 period_ns = _to_period_ns(sampling_freq)
-            params["uu_list"] = [s.uuid for s in self._streams]
-            params["version_list"] = [versions[s.uuid] for s in self._streams]
+            from btrdb.utils.general import batched
             params["snap_periodNS"] = period_ns
-            table = list(self._btrdb.ep.arrowMultiValues(**params))
-            if len(table) > 0:
-                data = pa.concat_tables(table)
-            else:
-                schema = pa.schema(
-                    [pa.field("time", pa.timestamp("ns", tz="UTC"), nullable=False)]
-                    + [
-                        pa.field(str(s.uuid), pa.float64(), nullable=False)
-                        for s in self._streams
-                    ],
-                )
-                data = pa.Table.from_arrays(
-                    [pa.array([]) for i in range(1 + len(self._streams))], schema=schema
-                )
+            data = None
+            # Batching the multistream queries is a stop gap to prevent
+            # the user from killing the DB by querying the raw values of
+            # too many streams at once.
+            for stream_batch in batched(self._streams, 20000):
+                params["uu_list"] = [s.uuid.bytes for s in stream_batch]
+                params["version_list"] = [versions[s.uuid] for s in stream_batch]
+                tmp_data = self._collect_arrow_values(params)
+                if data is not None:
+                    data = data.join(tmp_data, "time", join_type="full outer")
+                else:
+                    data = tmp_data
+        return data
+
+    def _collect_arrow_values(self, params: Dict[Any, Any]) -> pa.Table:
+        table = list(self._btrdb.ep.arrowMultiValues(**params))
+        if len(table) > 0:
+            data = pa.concat_tables(table)
+        else:
+            schema = pa.schema(
+                [pa.field("time", pa.timestamp("ns", tz="UTC"), nullable=False)]
+                + [
+                    pa.field(str(s.uuid), pa.float64(), nullable=False)
+                    for s in self._streams
+                ],
+            )
+            data = pa.Table.from_arrays(
+                [pa.array([]) for i in range(1 + len(self._streams))], schema=schema
+            )
         return data
 
     def __repr__(self):

@@ -11,12 +11,48 @@
 Testing for the btrdb.utils.general module
 """
 
+from itertools import zip_longest
+from collections import namedtuple
 from datetime import timedelta
 
 import pytest
 
-from btrdb.utils.general import pointwidth
+from btrdb.utils.general import pointwidth, batched
 from btrdb.utils.timez import ns_delta
+
+
+BatchedExample = namedtuple("BatchedExample", ["input", "n", "expected_output", "description"])
+batched_examples = [
+    BatchedExample(
+        (1, 2, 3, 4, 5, 6), 4, ((1, 2, 3, 4), (5, 6)), "Normal examples"
+    ),
+    BatchedExample(
+        (1, 2, 3, 4, 5, 6), 10, [(1, 2, 3, 4, 5, 6)], "Batch size larger than input"
+    ),
+    BatchedExample(
+        (1, "2", int, 4, 5, 6), 2, [(1, "2"), (int, 4), (5, 6)], "Test many data types"
+    ),
+    BatchedExample(
+        (_ for _ in range(4)), 3, [(0, 1, 2), (3, )], "Test generator input"
+    ),
+    BatchedExample(
+        [], 3, [], "Empty input"
+    ),
+]
+
+ids = [_.description for _ in batched_examples]
+@pytest.mark.parametrize(
+    "test_example", batched_examples, ids=ids
+)
+def test_batched(test_example: BatchedExample):
+    actual_output = batched(test_example.input, test_example.n)
+    for actual_elm, expected_el in zip_longest(actual_output, test_example.expected_output):
+        assert actual_elm == expected_el
+
+
+def test_batched_bad_batch():
+    with pytest.raises(ValueError):
+        next(batched("", 0))
 
 
 class TestPointwidth(object):
