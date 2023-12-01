@@ -26,9 +26,16 @@ from typing import Any, Dict, List
 
 import pyarrow as pa
 
-from btrdb.exceptions import (BTrDBError, BTRDBTypeError, BTRDBValueError,
-                              InvalidCollection, InvalidOperation, NoSuchPoint,
-                              StreamNotFoundError, retry)
+from btrdb.exceptions import (
+    BTrDBError,
+    BTRDBTypeError,
+    BTRDBValueError,
+    InvalidCollection,
+    InvalidOperation,
+    NoSuchPoint,
+    StreamNotFoundError,
+    retry,
+)
 from btrdb.point import RawPoint, StatPoint
 from btrdb.transformers import _STAT_PROPERTIES, StreamSetTransformer
 from btrdb.utils.buffer import PointBuffer
