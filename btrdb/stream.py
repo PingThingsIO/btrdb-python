@@ -50,6 +50,7 @@ from btrdb.utils.timez import currently_as_ns, to_nanoseconds
 logger = logging.getLogger(__name__)
 IS_DEBUG = logger.isEnabledFor(logging.DEBUG)
 INSERT_BATCH_SIZE = 50000
+MAX_STREAMS_READ = 50000
 MINIMUM_TIME = -(16 << 56)
 MAXIMUM_TIME = (48 << 56) - 1
 
@@ -2196,7 +2197,8 @@ class StreamSetBase(Sequence):
             # Batching the multistream queries is a stop gap to prevent
             # the user from killing the DB by querying the raw values of
             # too many streams at once.
-            for stream_batch in batched(self._streams, 20000):
+            # TODO: Remove this when the server handles batching
+            for stream_batch in batched(self._streams, MAX_STREAMS_READ):
                 params["uu_list"] = [s.uuid.bytes for s in stream_batch]
                 params["version_list"] = [versions[s.uuid] for s in stream_batch]
                 tmp_data = self._collect_arrow_values(params)
