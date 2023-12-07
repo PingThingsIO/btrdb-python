@@ -1426,6 +1426,31 @@ class Stream(object):
         """
         self._btrdb.ep.flush(self._uuid)
 
+    def describe(self, start=None, end=None):
+        """
+        A method to summarize the Stream data within a specified time range as returned by a
+        StatPoint.
+
+        Parameters
+        ----------
+        start : Any valid time representation, optional
+            Start time of the range, default is None.
+        end : Any valid time representation, optional
+            End time of the range, default is None.
+
+        Returns
+        -------
+        StatPoint
+            A StatPoint for the data within the specified time range.
+
+        """
+        start = to_nanoseconds(start) if start else self.earliest()[0].time
+        end = to_nanoseconds(end) if end else self.latest()[0].time
+        width = end - start
+        window = self.windows(start, end, width)[0]
+        return window
+
+
     def __repr__(self):
         return "<Stream collection={} name={}>".format(self.collection, self.name)
 
