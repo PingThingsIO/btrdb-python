@@ -93,18 +93,22 @@ class pointwidth(object):
         Returns
         -------
         aligned_start: int
-            The aligned start timestamp, which is the closest timestamp that is
-            aligned with the pointwidth's nanoseconds value and is less than or equal
-            to the original start timestamp.
+            First timestamp would be returned by `aligned_windows` that is inclusive of specified start
+            timestamp.
         aligned_end: int
-            The aligned end timestamp, which is the closest timestamp that is aligned
-            with the pointwidth's nanoseconds value and is less than or equal to the
-            original end timestamp.
+            Last timestamp would be returned by `aligned_windows` that is inclusive of specified start
+            timestamp.
         n_windows: int
-            The number of windows, which is the total number of aligned windows within
-            the given time period.
+            The number of windows would be returned by `aligned_windows`.
 
         Examples
+        --------
+        Querying `aligned_windows` of pointwidth of 30.
+
+        >>> start, end = "2016-03-01", "2016-03-02"
+        >>> pointwidth(30).for_aligned_windows(start, end)
+        (1456790399996657664, 1456876798632525824, 80466)
+
         """
         start, end = to_nanoseconds(start), to_nanoseconds(end)
         aligned_start = start - (start % self.nanoseconds)
