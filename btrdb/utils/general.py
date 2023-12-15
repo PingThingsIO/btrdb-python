@@ -12,12 +12,12 @@
 """
 General utilities for btrdb bindings
 """
+from btrdb.utils.timez import to_nanoseconds
+
 
 ##########################################################################
 ## Functions
 ##########################################################################
-
-
 def unpack_stream_descriptor(desc):
     """
     Returns dicts for tags and annotations found in supplied stream
@@ -73,6 +73,44 @@ class pointwidth(object):
             if nsec == 0:
                 break
         return cls(pos)
+
+    def for_aligned_windows(self, start, end):
+        """
+        Returns the aligned_windows's fist and last timestamps, as well as the number of windows,
+        based on a given pointwidth set.
+
+        Parameters
+        ----------
+        start : int or datetime like object
+            The start time in nanoseconds for the range to be queried. (see
+            :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
+
+        end : int or datetime like object
+            The end time in nanoseconds for the range to be queried. (see
+            :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
+
+
+        Returns
+        -------
+        aligned_start: int
+            The aligned start timestamp, which is the closest timestamp that is
+            aligned with the pointwidth's nanoseconds value and is less than or equal
+            to the original start timestamp.
+        aligned_end: int
+            The aligned end timestamp, which is the closest timestamp that is aligned
+            with the pointwidth's nanoseconds value and is less than or equal to the
+            original end timestamp.
+        n_windows: int
+            The number of windows, which is the total number of aligned windows within
+            the given time period.
+
+        Examples
+        """
+        start, end = to_nanoseconds(start), to_nanoseconds(end)
+        aligned_start = start - (start % self.nanoseconds)
+        n_windows = (end - aligned_start) // self.nanoseconds
+        aligned_end = aligned_start + (self.nanoseconds * (n_windows - 1))
+        return aligned_start, aligned_end, n_windows
 
     def __init__(self, p):
         self._pointwidth = int(p)
