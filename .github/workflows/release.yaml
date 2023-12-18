@@ -30,7 +30,10 @@ jobs:
         pip install -r tests/requirements.txt
     - name: Test with pytest
       run: |
-        pytest
+        pytest --cov-report= --cov=btrdb # suppress coverage report here
+    - name: Coverage Report
+      run: |
+        coverage report -m
 
 
   release:

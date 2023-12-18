@@ -14,6 +14,7 @@ General utilities for btrdb bindings
 """
 from btrdb.utils.timez import to_nanoseconds
 
+from datetime import timedelta
 
 ##########################################################################
 ## Functions
@@ -166,6 +167,12 @@ class pointwidth(object):
 
     def incr(self):
         return pointwidth(self + 1)
+
+    def to_timedelta(self):
+        """
+        Returns the timedelta of the pointwidth.
+        """
+        return timedelta(microseconds=self.microseconds)
 
     def __int__(self):
         return self._pointwidth
