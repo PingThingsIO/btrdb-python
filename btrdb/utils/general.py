@@ -12,9 +12,10 @@
 """
 General utilities for btrdb bindings
 """
+from datetime import timedelta
+
 from btrdb.utils.timez import to_nanoseconds
 
-from datetime import timedelta
 
 ##########################################################################
 ## Functions
