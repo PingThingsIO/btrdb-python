@@ -103,11 +103,13 @@ class pointwidth(object):
 
         Examples
         --------
-        Querying `aligned_windows` of pointwidth of 30.
+        Querying `aligned_windows` of pointwidth of 30, spaning 1 day (~24 hours).
 
         >>> start, end = "2016-03-01", "2016-03-02"
         >>> pointwidth(30).for_aligned_windows(start, end)
         (1456790399996657664, 1456876798632525824, 80466)
+        # output timestamp's `strftime` is:
+        # ['2016-02-29 23:59:59.996657664', '2016-03-01 23:59:58.632525824']
 
         """
         start, end = to_nanoseconds(start), to_nanoseconds(end)
