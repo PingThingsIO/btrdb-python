@@ -114,3 +114,19 @@ class TestPointwidth(object):
         Test incrementing a pointwidth
         """
         assert pointwidth(23).incr() == 24
+
+    @pytest.mark.parametrize(
+        "pw, expected",
+        [
+            (54, timedelta(days=208, seconds=43198, microseconds=509482)),
+            (51, timedelta(days=26, seconds=5399, microseconds=813685)),
+            (49, timedelta(days=6, seconds=44549, microseconds=953421)),
+            (46, timedelta(seconds=70368, microseconds=744178)),
+            (43, timedelta(seconds=8796, microseconds=93022)),
+            (39, timedelta(seconds=549, microseconds=755814)),
+            (34, timedelta(seconds=17, microseconds=179869)),
+            (30, timedelta(seconds=1, microseconds=73742)),
+        ],
+    )
+    def test_to_timedelta(self, pw, expected):
+        assert pointwidth(pw).to_timedelta() == expected
