@@ -56,6 +56,36 @@ class TestPointwidth(object):
         """
         assert pointwidth.from_nanoseconds(nsec) == expected
 
+    @pytest.mark.parametrize(
+        "pw_time_range, expected",
+        [
+            (
+                (52, 1560127027000000000, 1702702800000000000),
+                (1558245471070191616, 1697857059518676992, 32),
+            ),
+            (
+                (48, 1560127027000000000, 1702702800000000000),
+                (1559934320930455552, 1702360659146047488, 507),
+            ),
+            (
+                (44, 1456876800000000000, 1464652800000000000),
+                (1456861702896222208, 1464619856941809664, 442),
+            ),
+            (
+                (38, 1456876800000000000, 1464652800000000000),
+                (1456876546303197184, 1464652292534829056, 28289),
+            ),
+            (
+                (32, 1456876800000000000, 1464652800000000000),
+                (1456876799706267648, 1464652795046002688, 1810491),
+            ),
+        ],
+    )
+    def test_for_aligned_windows(self, pw_time_range, expected):
+        pw, start, end = pw_time_range
+        result = pointwidth(pw).for_aligned_windows(start, end)
+        assert result == expected
+
     def test_time_conversions(self):
         """
         Test standard pointwidth time conversions
