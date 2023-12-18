@@ -76,7 +76,7 @@ class pointwidth(object):
 
     def for_aligned_windows(self, start, end):
         """
-        Returns the aligned_windows's fist and last timestamps, as well as the number of windows,
+        Returns the aligned_windows's first and last timestamps, as well as the number of windows,
         based on a given pointwidth set.
 
         Parameters
@@ -96,7 +96,7 @@ class pointwidth(object):
             First timestamp would be returned by `aligned_windows` that is inclusive of specified start
             timestamp.
         aligned_end: int
-            Last timestamp would be returned by `aligned_windows` that is inclusive of specified start
+            Last timestamp would be returned by `aligned_windows` that is inclusive of specified end
             timestamp.
         n_windows: int
             The number of windows would be returned by `aligned_windows`.
