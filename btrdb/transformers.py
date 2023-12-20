@@ -18,11 +18,34 @@ Value transformation utilities
 import contextlib
 import csv
 from collections import OrderedDict
-from typing import Sequence
-from warnings import warn
+from typing import TYPE_CHECKING
 
-import pandas as pd
-import pyarrow
+try:
+    import pyarrow as pa
+except ImportError:
+    pa = None
+try:
+    import polars as pl
+except ImportError:
+    pl = None
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+try:
+    import numpy as np
+except ImportError:
+    np = None
+
+if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
+    import polars as pl
+    import pyarrow as pa
+
+_IMPORT_ERR_MSG = (
+    """Package(s) expected, but not found. Please pip install the following: {}"""
+)
 
 ##########################################################################
 ## Helper Functions
@@ -72,10 +95,8 @@ def to_series(streamset, datetime64_index=True, agg="mean", name_callable=None):
         Stream object.
 
     """
-    try:
-        import pandas as pd
-    except ImportError:
-        raise ImportError("Please install Pandas to use this transformation function.")
+    if pd is None:
+        raise ImportError(_IMPORT_ERR_MSG.format("pandas"))
 
     # TODO: allow this at some future point
     if agg == "all":
@@ -126,6 +147,8 @@ def arrow_to_series(streamset, agg="mean", name_callable=None):
         raise NotImplementedError(
             "arrow_to_series requires an arrow-enabled BTrDB server."
         )
+    if pa is None or pd is None:
+        raise ImportError(_IMPORT_ERR_MSG.format(",".join(["pyarrow", "pandas"])))
     if agg is None:
         agg = ["mean"]
     if not isinstance(agg, list):
@@ -162,14 +185,8 @@ def arrow_to_dataframe(streamset, agg=None, name_callable=None) -> pd.DataFrame:
         raise NotImplementedError(
             "arrow_to_dataframe requires an arrow-enabled BTrDB server."
         )
-
-    try:
-        import pandas as pd
-        import pyarrow as pa
-    except ImportError as err:
-        raise ImportError(
-            f"Please install Pandas and pyarrow to use this transformation function. ErrorMessage: {err}"
-        )
+    if pa is None or pd is None:
+        raise ImportError(_IMPORT_ERR_MSG.format(",".join(["pyarrow", "pandas"])))
 
     if agg is None:
         agg = ["mean"]
@@ -235,10 +252,8 @@ def to_dataframe(streamset, agg="mean", name_callable=None):
 
 
     """
-    try:
-        import pandas as pd
-    except ImportError:
-        raise ImportError("Please install Pandas to use this transformation function.")
+    if pd is None:
+        raise ImportError(_IMPORT_ERR_MSG.format("pandas"))
 
     # TODO: allow this at some future point
     if agg == "all" and name_callable is not None:
@@ -296,10 +311,10 @@ def arrow_to_polars(streamset, agg=None, name_callable=None):
         raise NotImplementedError(
             "arrow_to_polars requires an arrow-enabled BTrDB server."
         )
-    try:
-        import polars as pl
-    except ImportError:
-        raise ImportError("Please install polars to use this transformation function.")
+    if pa is None or pd is None or pl is None:
+        raise ImportError(
+            _IMPORT_ERR_MSG.format(",".join(["pyarrow", "pandas", "polars"]))
+        )
     if agg is None:
         agg = ["mean"]
     if not isinstance(agg, list):
@@ -323,6 +338,8 @@ def arrow_to_arrow_table(streamset):
         raise NotImplementedError(
             "arrow_to_arrow_table requires an arrow-enabled BTrDB server."
         )
+    if pa is None:
+        raise ImportError(_IMPORT_ERR_MSG.format("pyarrow"))
     return streamset.arrow_values()
 
 
@@ -342,10 +359,8 @@ def to_polars(streamset, agg="mean", name_callable=None):
         Specify a callable that can be used to determine the series name given a
         Stream object.  This is not compatible with agg == "all" at this time
     """
-    try:
-        import polars as pl
-    except ImportError:
-        raise ImportError("Please install polars to use this transformation function.")
+    if pl is None or pd is None:
+        raise ImportError(_IMPORT_ERR_MSG.format(",".join(["polars", "pandas"])))
 
     # TODO: allow this at some future point
     if agg == "all" and name_callable is not None:
@@ -398,10 +413,8 @@ def to_array(streamset, agg="mean"):
         argument is ignored if RawPoint values are passed into the function.
 
     """
-    try:
-        import numpy as np
-    except ImportError:
-        raise ImportError("Please install Numpy to use this transformation function.")
+    if np is None:
+        raise ImportError(_IMPORT_ERR_MSG.format("numpy"))
 
     # TODO: allow this at some future point
     if agg == "all":
@@ -438,6 +451,10 @@ def arrow_to_numpy(streamset, agg=None):
     if not streamset._btrdb._ARROW_ENABLED:
         raise NotImplementedError(
             "arrow_to_numpy requires an arrow-enabled BTrDB server."
+        )
+    if np is None or pa is None or pd is None:
+        raise ImportError(
+            _IMPORT_ERR_MSG.format(",".join(["numpy", "pyarrow", "pandas"]))
         )
     arrow_df = arrow_to_dataframe(streamset=streamset, agg=agg, name_callable=None)
     return arrow_df.values
@@ -511,6 +528,8 @@ def arrow_to_dict(streamset, agg=None, name_callable=None):
         raise NotImplementedError(
             "arrow_to_dict requires an arrow-enabled BTrDB server."
         )
+    if pa is None or pd is None:
+        raise ImportError(_IMPORT_ERR_MSG.format(",".join(["pyarrow", "pandas"])))
     if agg is None:
         agg = ["mean"]
     if not isinstance(agg, list):

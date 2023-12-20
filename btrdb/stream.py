@@ -22,9 +22,15 @@ import warnings
 from collections import deque
 from collections.abc import Sequence
 from copy import deepcopy
-from typing import List
+from typing import TYPE_CHECKING, List
 
-import pyarrow as pa
+try:
+    import pyarrow as pa
+except ImportError:
+    pa = None
+
+if TYPE_CHECKING:
+    import pyarrow as pa
 
 from btrdb.exceptions import (
     BTrDBError,
@@ -51,6 +57,9 @@ IS_DEBUG = logger.isEnabledFor(logging.DEBUG)
 INSERT_BATCH_SIZE = 50000
 MINIMUM_TIME = -(16 << 56)
 MAXIMUM_TIME = (48 << 56) - 1
+
+
+_ARROW_IMPORT_MSG = """Package pyarrow required, please pip install."""
 
 try:
     RE_PATTERN = re._pattern_type
@@ -619,6 +628,8 @@ class Stream(object):
         """
         if not self._btrdb._ARROW_ENABLED:
             raise NotImplementedError(_arrow_not_impl_str.format("arrow_insert"))
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
         chunksize = INSERT_BATCH_SIZE
         assert isinstance(data, pa.Table)
         tmp_table = data.rename_columns(["time", "value"])
@@ -951,6 +962,8 @@ class Stream(object):
         """
         if not self._btrdb._ARROW_ENABLED:
             raise NotImplementedError(_arrow_not_impl_str.format("arrow_values"))
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
         arrow_and_versions = self._btrdb.ep.arrowRawValues(
@@ -1113,6 +1126,8 @@ class Stream(object):
             raise NotImplementedError(
                 _arrow_not_impl_str.format("arrow_aligned_windows")
             )
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
 
         if IS_DEBUG:
             logger.debug(f"For stream - {self.uuid} -  {self.name}")
@@ -1273,6 +1288,8 @@ class Stream(object):
         """
         if not self._btrdb._ARROW_ENABLED:
             raise NotImplementedError(_arrow_not_impl_str.format("arrow_windows"))
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
         tables = list(
@@ -2114,6 +2131,8 @@ class StreamSetBase(Sequence):
         -----
         This method is available for commercial customers with arrow-enabled servers.
         """
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
         params = self._params_from_filters()
         versions = self._pinned_versions
         if versions is None:

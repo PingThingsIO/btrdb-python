@@ -38,6 +38,8 @@ try:
 except ImportError:
     pa = None
 
+_ARROW_IMPORT_MSG = """Package pyarrow required, please pip install."""
+
 
 class Endpoint(object):
     """Server endpoint where we make specific requests."""
@@ -56,6 +58,8 @@ class Endpoint(object):
 
     @error_handler
     def arrowRawValues(self, uu, start, end, version=0):
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
         params = btrdb_pb2.RawValuesParams(
             uuid=uu.bytes, start=start, end=end, versionMajor=version
         )
@@ -66,6 +70,8 @@ class Endpoint(object):
 
     @error_handler
     def arrowMultiValues(self, uu_list, start, end, version_list, snap_periodNS):
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
         params = btrdb_pb2.ArrowMultiValuesParams(
             uuid=[uu.bytes for uu in uu_list],
             start=start,
@@ -80,6 +86,8 @@ class Endpoint(object):
 
     @error_handler
     def arrowInsertValues(self, uu: uuid.UUID, values: pa.Table, policy: str):
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
         policy_map = {
             "never": btrdb_pb2.MergePolicy.NEVER,
             "equal": btrdb_pb2.MergePolicy.EQUAL,
@@ -115,6 +123,8 @@ class Endpoint(object):
 
     @error_handler
     def arrowAlignedWindows(self, uu, start, end, pointwidth, version=0):
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
         params = btrdb_pb2.AlignedWindowsParams(
             uuid=uu.bytes,
             start=start,
@@ -143,6 +153,8 @@ class Endpoint(object):
 
     @error_handler
     def arrowWindows(self, uu, start, end, width, depth, version=0):
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
         params = btrdb_pb2.WindowsParams(
             uuid=uu.bytes,
             start=start,
