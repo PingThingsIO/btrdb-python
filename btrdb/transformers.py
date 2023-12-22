@@ -118,7 +118,7 @@ def to_series(streamset, datetime64_index=True, agg="mean", name_callable=None):
                 values.append(getattr(point, agg))
 
         if datetime64_index:
-            times = pd.Index(times, dtype="datetime64[ns]")
+            times = pd.Index(times, dtype="datetime64[ns]", name="time")
 
         result.append(pd.Series(data=values, index=times, name=stream_names[idx]))
     return result
@@ -210,9 +210,11 @@ def arrow_to_dataframe(streamset, agg=None, name_callable=None) -> pd.DataFrame:
     col_names = _stream_names(streamset, name_callable)
     col_names_map = {str(s.uuid): c for s, c in zip(streamset, col_names)}
     updated_table_columns = []
+    # assume time col is the first column
+    time_col = tmp_table.column_names[0]
     for old_col in tmp_table.column_names:
-        if old_col == "time":
-            updated_table_columns.append("time")
+        if old_col == time_col:
+            updated_table_columns.append(time_col)
         else:
             for uu, new_name in col_names_map.items():
                 if uu in old_col:
@@ -226,12 +228,14 @@ def arrow_to_dataframe(streamset, agg=None, name_callable=None) -> pd.DataFrame:
             for agg_name in agg:
                 if agg_name in column_str:
                     usable_cols.append(column_str)
-        tmp = tmp_table.select(["time", *usable_cols])
+        tmp = tmp_table.select([time_col, *usable_cols])
     else:
         tmp = tmp_table
-    return tmp.to_pandas(date_as_object=False, types_mapper=pd.ArrowDtype).set_index(
-        "time"
+    tmp_df = tmp.to_pandas(date_as_object=False, types_mapper=pd.ArrowDtype).set_index(
+        time_col
     )
+    tmp_df.index.name = time_col
+    return tmp_df
 
 
 def to_dataframe(streamset, agg="mean", name_callable=None):
@@ -273,6 +277,7 @@ def to_dataframe(streamset, agg="mean", name_callable=None):
 
     if not df.empty:
         df = df.set_index("time")
+        df.index.name = "time"
 
         if agg == "all" and not streamset.allow_window:
             stream_names = [
@@ -386,7 +391,7 @@ def to_polars(streamset, agg="mean", name_callable=None):
         else:
             df = df.set_index("time")
 
-        df.index = pd.DatetimeIndex(df.index, tz="UTC")
+        df.index = pd.DatetimeIndex(df.index, tz="UTC", name="time")
         if agg == "all" and streamset.allow_window:
             stream_names = [
                 [s.collection, s.name, prop]
@@ -397,7 +402,7 @@ def to_polars(streamset, agg="mean", name_callable=None):
         else:
             df.columns = _stream_names(streamset, name_callable)
 
-    return pl.from_pandas(df.reset_index(), nan_to_null=False)
+    return pl.from_pandas(df, nan_to_null=False, include_index=True)
 
 
 def to_array(streamset, agg="mean"):

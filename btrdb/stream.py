@@ -1145,7 +1145,9 @@ class Stream(object):
         )
         if len(tables) > 0:
             tabs, ver = zip(*tables)
-            return pa.concat_tables(tabs).sort_by("time")
+            # assume that time column is the first column returned
+            time_col = tabs[0].column_names[0]
+            return pa.concat_tables(tabs).sort_by(time_col)
         else:
             schema = pa.schema(
                 [
@@ -1309,7 +1311,8 @@ class Stream(object):
         )
         if len(tables) > 0:
             tabs, ver = zip(*tables)
-            return pa.concat_tables(tabs).sort_by("time")
+            time_col = tabs[0].column_names[0]
+            return pa.concat_tables(tabs).sort_by(time_col)
         else:
             schema = pa.schema(
                 [
@@ -2254,7 +2257,8 @@ class StreamSetBase(Sequence):
                 data = pa.Table.from_arrays(
                     [pa.array([]) for i in range(1 + len(self._streams))], schema=schema
                 )
-        return data.sort_by("time")
+        time_col = data.column_names[0]
+        return data.sort_by(time_col)
 
     def __repr__(self):
         token = "stream" if len(self) == 1 else "streams"

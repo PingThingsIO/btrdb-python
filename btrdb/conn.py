@@ -406,7 +406,7 @@ class BTrDB(object):
             collection=collection,
             tags=tags.copy(),
             annotations=annotations.copy(),
-            property_version=0,
+            property_version=1,
         )
 
     def info(self):
