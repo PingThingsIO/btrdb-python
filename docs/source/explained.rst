@@ -126,6 +126,5 @@ The original version of this page can be found at:
 
 This page is written based on the following sources:
 
-- `Homepage <http://btrdb.io/>`_
 - `Whitepaper <https://www.usenix.org/system/files/conference/fast16/fast16-papers-andersen.pdf>`_
 - `Code <https://github.com/BTrDB/btrdb-server>`_

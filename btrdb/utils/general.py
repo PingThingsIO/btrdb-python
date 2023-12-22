@@ -12,12 +12,14 @@
 """
 General utilities for btrdb bindings
 """
+from datetime import timedelta
+
+from btrdb.utils.timez import to_nanoseconds
+
 
 ##########################################################################
 ## Functions
 ##########################################################################
-
-
 def unpack_stream_descriptor(desc):
     """
     Returns dicts for tags and annotations found in supplied stream
@@ -74,6 +76,50 @@ class pointwidth(object):
                 break
         return cls(pos)
 
+    def for_aligned_windows(self, start, end):
+        """
+        Returns the aligned_windows's first and last timestamps, as well as the number of windows,
+        based on a given pointwidth set.
+
+        Parameters
+        ----------
+        start : int or datetime like object
+            The start time in nanoseconds for the range to be queried. (see
+            :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
+
+        end : int or datetime like object
+            The end time in nanoseconds for the range to be queried. (see
+            :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
+
+
+        Returns
+        -------
+        aligned_start: int
+            First timestamp would be returned by `aligned_windows` that is inclusive of specified start
+            timestamp.
+        aligned_end: int
+            Last timestamp would be returned by `aligned_windows` that is inclusive of specified end
+            timestamp.
+        n_windows: int
+            The number of windows would be returned by `aligned_windows`.
+
+        Examples
+        --------
+        Querying `aligned_windows` of pointwidth of 30, spaning 1 day (~24 hours).
+
+        >>> start, end = "2016-03-01", "2016-03-02"
+        >>> pointwidth(30).for_aligned_windows(start, end)
+        (1456790399996657664, 1456876798632525824, 80466)
+        # output timestamp's `strftime` is:
+        # ['2016-02-29 23:59:59.996657664', '2016-03-01 23:59:58.632525824']
+
+        """
+        start, end = to_nanoseconds(start), to_nanoseconds(end)
+        aligned_start = start - (start % self.nanoseconds)
+        n_windows = (end - aligned_start) // self.nanoseconds
+        aligned_end = aligned_start + (self.nanoseconds * (n_windows - 1))
+        return aligned_start, aligned_end, n_windows
+
     def __init__(self, p):
         self._pointwidth = int(p)
 
@@ -122,6 +168,12 @@ class pointwidth(object):
 
     def incr(self):
         return pointwidth(self + 1)
+
+    def to_timedelta(self):
+        """
+        Returns the timedelta of the pointwidth.
+        """
+        return timedelta(microseconds=self.microseconds)
 
     def __int__(self):
         return self._pointwidth

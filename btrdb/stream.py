@@ -22,9 +22,15 @@ import warnings
 from collections import deque
 from collections.abc import Sequence
 from copy import deepcopy
-from typing import List
+from typing import TYPE_CHECKING, List
 
-import pyarrow as pa
+try:
+    import pyarrow as pa
+except ImportError:
+    pa = None
+
+if TYPE_CHECKING:
+    import pyarrow as pa
 
 from btrdb.exceptions import (
     BTrDBError,
@@ -51,6 +57,9 @@ IS_DEBUG = logger.isEnabledFor(logging.DEBUG)
 INSERT_BATCH_SIZE = 50000
 MINIMUM_TIME = -(16 << 56)
 MAXIMUM_TIME = (48 << 56) - 1
+
+
+_ARROW_IMPORT_MSG = """Package pyarrow required, please pip install."""
 
 try:
     RE_PATTERN = re._pattern_type
@@ -619,6 +628,8 @@ class Stream(object):
         """
         if not self._btrdb._ARROW_ENABLED:
             raise NotImplementedError(_arrow_not_impl_str.format("arrow_insert"))
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
         chunksize = INSERT_BATCH_SIZE
         assert isinstance(data, pa.Table)
         tmp_table = data.rename_columns(["time", "value"])
@@ -919,7 +930,7 @@ class Stream(object):
         end : int or datetime like object
             The end time in nanoseconds for the range to be queried. (see
             :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
-        version: int
+        version: int, default: 0
             The version of the stream to be queried
         schema: pyarrow.Schema
             Optional arrow schema the server will cast the returned data to before sending it over
@@ -935,6 +946,7 @@ class Stream(object):
         retry_backoff: int, default: 4
             Exponential factor by which the backoff increases between retries.
             Will be ignored if auto_retry is False
+
 
         Returns
         ------
@@ -954,6 +966,8 @@ class Stream(object):
         """
         if not self._btrdb._ARROW_ENABLED:
             raise NotImplementedError(_arrow_not_impl_str.format("arrow_values"))
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
         arrow_and_versions = self._btrdb.ep.arrowRawValues(
@@ -1087,7 +1101,7 @@ class Stream(object):
             :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
         pointwidth : int, required
             Specify the number of ns between data points (2**pointwidth)
-        version : int
+        version : int, default: 0
             Version of the stream to query
         auto_retry: bool, default: False
             Whether to retry this request in the event of an error
@@ -1117,6 +1131,8 @@ class Stream(object):
             raise NotImplementedError(
                 _arrow_not_impl_str.format("arrow_aligned_windows")
             )
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
 
         if IS_DEBUG:
             logger.debug(f"For stream - {self.uuid} -  {self.name}")
@@ -1129,7 +1145,7 @@ class Stream(object):
         )
         if len(tables) > 0:
             tabs, ver = zip(*tables)
-            return pa.concat_tables(tabs)
+            return pa.concat_tables(tabs).sort_by("time")
         else:
             schema = pa.schema(
                 [
@@ -1277,6 +1293,8 @@ class Stream(object):
         """
         if not self._btrdb._ARROW_ENABLED:
             raise NotImplementedError(_arrow_not_impl_str.format("arrow_windows"))
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
         tables = list(
@@ -1291,7 +1309,7 @@ class Stream(object):
         )
         if len(tables) > 0:
             tabs, ver = zip(*tables)
-            return pa.concat_tables(tabs)
+            return pa.concat_tables(tabs).sort_by("time")
         else:
             schema = pa.schema(
                 [
@@ -1591,8 +1609,11 @@ class StreamSetBase(Sequence):
             lambda s: s.nearest(start, version=versions.get(s.uuid, 0), backward=False),
             self._streams,
         )
-        for point, _ in earliest_points_gen:
-            earliest.append(point)
+        for point in earliest_points_gen:
+            if point is not None:
+                earliest.append(point[0])
+            else:
+                earliest.append(None)
 
         return tuple(earliest)
 
@@ -1618,8 +1639,11 @@ class StreamSetBase(Sequence):
             lambda s: s.nearest(start, version=versions.get(s.uuid, 0), backward=True),
             self._streams,
         )
-        for point, _ in latest_points_gen:
-            latest.append(point)
+        for point in latest_points_gen:
+            if point is not None:
+                latest.append(point[0])
+            else:
+                latest.append(None)
 
         return tuple(latest)
 
@@ -1701,7 +1725,7 @@ class StreamSetBase(Sequence):
             key/value pairs for filtering streams based on tags
         annotations : dict
             key/value pairs for filtering streams based on annotations
-        sampling_frequency : int
+        sampling_frequency : float
             The sampling frequency of the data streams in Hz, set this if you want timesnapped values.
         schema: pyarrow.Schema
             Optional arrow schema the server will cast the returned data to before sending it over
@@ -1721,10 +1745,18 @@ class StreamSetBase(Sequence):
         """
 
         obj = self.clone()
-        if start is not None or end is not None or sampling_frequency is not None or schema is not None:
+        if (
+            start is not None
+            or end is not None
+            or sampling_frequency is not None
+            or schema is not None
+        ):
             obj.filters.append(
                 StreamFilter(
-                    start=start, end=end, sampling_frequency=sampling_frequency, schema=schema,
+                    start=start,
+                    end=end,
+                    sampling_frequency=sampling_frequency,
+                    schema=schema,
                 )
             )
 
@@ -2112,10 +2144,14 @@ class StreamSetBase(Sequence):
     ):
         """Return a pyarrow table of stream values based on the streamset parameters.
 
+        This data will be sorted by the 'time' column.
+
         Notes
         -----
         This method is available for commercial customers with arrow-enabled servers.
         """
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
         params = self._params_from_filters()
         versions = self._pinned_versions
         if versions is None:
@@ -2126,7 +2162,9 @@ class StreamSetBase(Sequence):
 
         if self.pointwidth is not None:
             if params.pop("schema", None) is not None:
-                raise NotImplementedError("aligned windows queries do not yet support an arrow schema")
+                raise NotImplementedError(
+                    "aligned windows queries do not yet support an arrow schema"
+                )
             # create list of stream.aligned_windows data
             params.update({"pointwidth": self.pointwidth})
             _ = params.pop("sampling_frequency", None)
@@ -2163,7 +2201,9 @@ class StreamSetBase(Sequence):
             # create list of stream.windows data (the windows method should
             # prevent the possibility that only one of these is None)
             if params.pop("schema", None) is not None:
-                raise NotImplementedError("windows queries do not yet support an arrow schema")
+                raise NotImplementedError(
+                    "windows queries do not yet support an arrow schema"
+                )
             _ = params.pop("sampling_frequency", None)
             params.update({"width": self.width})
             windows_gen = self._btrdb._executor.map(
@@ -2202,7 +2242,7 @@ class StreamSetBase(Sequence):
             if len(table) > 0:
                 data = pa.concat_tables(table)
             else:
-                schema = params.pop('schema', None)
+                schema = params.pop("schema", None)
                 if schema is None:
                     schema = pa.schema(
                         [pa.field("time", pa.timestamp("ns", tz="UTC"), nullable=False)]
@@ -2214,7 +2254,7 @@ class StreamSetBase(Sequence):
                 data = pa.Table.from_arrays(
                     [pa.array([]) for i in range(1 + len(self._streams))], schema=schema
                 )
-        return data
+        return data.sort_by("time")
 
     def __repr__(self):
         token = "stream" if len(self) == 1 else "streams"
@@ -2270,14 +2310,17 @@ class StreamFilter(object):
     """
 
     def __init__(
-        self, start: int = None, end: int = None, sampling_frequency: int = None, schema = None
+        self,
+        start: int = None,
+        end: int = None,
+        sampling_frequency: int = None,
+        schema=None,
     ):
         self.start = to_nanoseconds(start) if start else None
         self.end = to_nanoseconds(end) if end else None
-        self.sampling_frequency = (
-            int(sampling_frequency) if sampling_frequency else None
-        )
         self.schema = schema
+        self.sampling_frequency = sampling_frequency if sampling_frequency else None
+
         if self.start is None and self.end is None:
             raise BTRDBValueError("A valid `start` or `end` must be supplied")
 

@@ -22,6 +22,7 @@ import re
 import uuid as uuidlib
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
+from warnings import warn
 
 import certifi
 import grpc
@@ -61,7 +62,10 @@ class Connection(object):
 
         """
         addrport = addrportstr.split(":", 2)
-        chan_ops = []
+        # 100MB size limit ~ 2500 streams for 5000 points with each point being 64bit
+        # 500MB size limit ~ 13K streams for 5000 points
+        # -1 size limit = no limit of size to send
+        chan_ops = [("grpc.max_receive_message_length", -1)]
 
         if len(addrport) != 2:
             raise ValueError("expecting address:port")
@@ -313,6 +317,7 @@ class BTrDB(object):
             raise ValueError(
                 f"Could not identify stream based on `{ident}`.  Identifier must be UUID or collection/name."
             )
+
         obj = StreamSet(streams)
 
         if versions:
@@ -574,7 +579,12 @@ class BTrDB(object):
                             property_version=desc.propertyVersion,
                         )
                     )
-
+        # TODO: In future release update this method to return a streamset object.
+        warn(
+            "StreamSet will be returned in a future release.",
+            FutureWarning,
+            stacklevel=2,
+        )
         return result
 
     @retry

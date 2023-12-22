@@ -13,13 +13,24 @@ We recommend using pip to install btrdb-python on all platforms:
 
     $ pip install btrdb
 
+With :code:`btrdb>=5.30.2`, there are now extra dependencies that can be installed with ``pip``.
+We recommend installing the :code:`data` extra dependencies (the second option in the code block below).
+
+
+.. code-block:: shell-session
+
+    $ pip install "btrdb>=5.30.2" # standard btrdb
+    $ pip install "btrdb[data]>=5.30.2" # btrdb with data science packages included (recommended)
+    $ pip install "btrdb[all]>=5.30.2" # btrdb with testing, data science and all other optional packages
+
+
 To get a specific version of btrdb-python supply the version number.  The major
-version of this library is pegged to the major version of the BTrDB database as
-in the 4.x bindings are best used to speak to a 4.x BTrDB database.
+version of this library is tied to the major version of the BTrDB database as
+in the 4.X bindings are best used to speak to a 4.X BTrDB database, the 5.X bindings for 5.X platform..
 
 .. code-block:: bash
 
-    $ pip install btrdb==4.11.2
+    $ pip install "btrdb[data]==5.30.2"
 
 
 To upgrade using pip:
@@ -32,12 +43,4 @@ To upgrade using pip:
 Installing with Anaconda
 ------------------------
 
-If you'd like to use Anaconda, you'll need to download the library from the pingthings
-channel as shown below.
-
-Note however that only the version 5 bindings are available in Anaconda Cloud.  If you'd
-like to install the version 4 bindings you will need to use `pip` as shown above.
-
-.. code-block:: bash
-
-    $ conda install -c pingthings btrdb
+We recommend installing using ``pip``.

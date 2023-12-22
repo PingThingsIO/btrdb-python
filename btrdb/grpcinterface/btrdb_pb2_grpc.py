@@ -139,6 +139,11 @@ class BTrDBStub(object):
                 request_serializer=btrdb__pb2.SQLQueryParams.SerializeToString,
                 response_deserializer=btrdb__pb2.SQLQueryResponse.FromString,
                 )
+        self.Subscribe = channel.stream_stream(
+                '/v5api.BTrDB/Subscribe',
+                request_serializer=btrdb__pb2.SubscriptionUpdate.SerializeToString,
+                response_deserializer=btrdb__pb2.SubscriptionResp.FromString,
+                )
 
 
 class BTrDBServicer(object):
@@ -289,6 +294,12 @@ class BTrDBServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def SQLQuery(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Subscribe(self, request_iterator, context):
         """rpc SetCompactionConfig(SetCompactionConfigParams) returns (SetCompactionConfigResponse);
         rpc GetCompactionConfig(GetCompactionConfigParams) returns (GetCompactionConfigResponse);
         """
@@ -423,6 +434,11 @@ def add_BTrDBServicer_to_server(servicer, server):
                     servicer.SQLQuery,
                     request_deserializer=btrdb__pb2.SQLQueryParams.FromString,
                     response_serializer=btrdb__pb2.SQLQueryResponse.SerializeToString,
+            ),
+            'Subscribe': grpc.stream_stream_rpc_method_handler(
+                    servicer.Subscribe,
+                    request_deserializer=btrdb__pb2.SubscriptionUpdate.FromString,
+                    response_serializer=btrdb__pb2.SubscriptionResp.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -856,5 +872,22 @@ class BTrDB(object):
         return grpc.experimental.unary_stream(request, target, '/v5api.BTrDB/SQLQuery',
             btrdb__pb2.SQLQueryParams.SerializeToString,
             btrdb__pb2.SQLQueryResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def Subscribe(request_iterator,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.stream_stream(request_iterator, target, '/v5api.BTrDB/Subscribe',
+            btrdb__pb2.SubscriptionUpdate.SerializeToString,
+            btrdb__pb2.SubscriptionResp.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)

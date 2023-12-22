@@ -1,7 +1,10 @@
 [project]
 name = "btrdb"
-version = "5.28.1"
+version = "5.31.0"
 authors = [
+    {name="PingThingsIO", email="support@pingthings.io"},
+]
+maintainers = [
     {name="PingThingsIO", email="support@pingthings.io"},
 ]
 description = "Bindings to interact with the Berkeley Tree Database using gRPC."
@@ -61,8 +64,7 @@ all = [
 ]
 
 [project.urls]
-"Homepage" = "https://btrdb.io"
-"Docs" = "https://btrdb.readthedocs.io"
+"Docs" = "https://btrdb-python.readthedocs.io/"
 "Repository" = "https://github.com/pingthingsio/btrdb-python.git"
 
 [build-system]
