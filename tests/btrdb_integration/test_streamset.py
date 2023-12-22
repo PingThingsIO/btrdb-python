@@ -126,7 +126,6 @@ def test_streamset_arrow_windows_vs_windows(conn, tmp_collection, name_callable)
         .windows(width=btrdb.utils.timez.ns_delta(nanoseconds=10))
     )
     values_arrow = ss.arrow_to_dataframe(name_callable=name_callable)
-    values_arrow.set_index("time", inplace=True)
     values_arrow.index = pd.DatetimeIndex(values_arrow.index)
     values_prev = ss.to_dataframe(name_callable=name_callable).convert_dtypes(
         dtype_backend="pyarrow"
@@ -158,7 +157,6 @@ def test_streamset_arrow_windows_vs_windows_agg_all(conn, tmp_collection):
         .windows(width=btrdb.utils.timez.ns_delta(nanoseconds=10))
     )
     values_arrow = ss.arrow_to_dataframe(name_callable=None, agg=["all"])
-    values_arrow.set_index("time", inplace=True)
     values_arrow.index = pd.DatetimeIndex(values_arrow.index)
     values_prev = ss.to_dataframe(name_callable=None, agg="all")
     values_prev = values_prev.apply(lambda x: x.astype(str(x.dtype) + "[pyarrow]"))
@@ -214,7 +212,6 @@ def test_streamset_arrow_aligned_windows_vs_aligned_windows(
         .windows(width=btrdb.utils.general.pointwidth.from_nanoseconds(10))
     )
     values_arrow = ss.arrow_to_dataframe(name_callable=name_callable)
-    values_arrow.set_index("time", inplace=True)
     values_arrow.index = pd.DatetimeIndex(values_arrow.index)
     values_prev = ss.to_dataframe(
         name_callable=name_callable
@@ -277,7 +274,6 @@ def test_arrow_streamset_to_dataframe(conn, tmp_collection):
     s2.insert(list(zip(t2, d2)))
     ss = btrdb.stream.StreamSet([s1, s2]).filter(start=100, end=121)
     values = ss.arrow_to_dataframe()
-    values.set_index("time", inplace=True)
     expected_times = [100, 101, 105, 106, 110, 114, 115, 119, 120]
     expected_times = [
         pa.scalar(v, type=pa.timestamp("ns", tz="UTC")).as_py() for v in expected_times
@@ -300,11 +296,11 @@ def test_arrow_streamset_to_dataframe(conn, tmp_collection):
             pa.field(tmp_collection + "/s2", type=pa.float64(), nullable=False),
         ]
     )
-    expected_table = pa.Table.from_pydict(expected_dat, schema=schema)
+    expected_table = pa.Table.from_pydict(mapping=expected_dat, schema=schema)
     expected_df = expected_table.to_pandas(
-        timestamp_as_object=False, types_mapper=pd.ArrowDtype
-    )
-    expected_df.set_index("time", inplace=True)
+        timestamp_as_object=False,
+        types_mapper=pd.ArrowDtype,
+    ).set_index("time")
     expected_df.index = pd.DatetimeIndex(expected_df.index, tz="UTC")
     np_test.assert_array_equal(
         values.values.astype(float), expected_df.values.astype(float)
@@ -333,9 +329,9 @@ def test_arrow_streamset_to_polars(conn, tmp_collection):
         tmp_collection + "/s2": expected_col2,
     }
     expected_df = pd.DataFrame(
-        expected_dat, index=pd.DatetimeIndex(expected_times)
-    ).reset_index(names="time")
-    expected_df_pl = pl.from_pandas(expected_df, nan_to_null=False)
+        expected_dat, index=pd.DatetimeIndex(expected_times, name="time")
+    )
+    expected_df_pl = pl.from_pandas(expected_df, nan_to_null=False, include_index=True)
     pl_test.assert_frame_equal(values, expected_df_pl)
 
 
@@ -367,9 +363,9 @@ def test_streamset_arrow_polars_vs_old_to_polars(conn, tmp_collection, name_call
         tmp_collection + "/s2": expected_col2,
     }
     expected_df = pd.DataFrame(
-        expected_dat, index=pd.DatetimeIndex(expected_times, tz="UTC")
-    ).reset_index(names="time")
-    expected_df_pl = pl.from_pandas(expected_df, nan_to_null=False)
+        expected_dat, index=pd.DatetimeIndex(expected_times, tz="UTC", name="time")
+    )
+    expected_df_pl = pl.from_pandas(expected_df, nan_to_null=False, include_index=True)
     pl_test.assert_frame_equal(values_arrow, expected_df_pl)
     pl_test.assert_frame_equal(values_non_arrow, expected_df_pl)
     pl_test.assert_frame_equal(values_non_arrow, values_arrow)
@@ -407,7 +403,7 @@ def test_streamset_windows_arrow_polars_vs_old_to_polars(
     }
     new_names["time"] = "time"
     values_non_arrow_pl = values_non_arrow_pl.rename(mapping=new_names)
-    assert values_arrow_pl.frame_equal(values_non_arrow_pl)
+    assert values_arrow_pl.equals(values_non_arrow_pl)
 
 
 def test_streamset_windows_aggregates_filter(conn, tmp_collection):
@@ -428,7 +424,6 @@ def test_streamset_windows_aggregates_filter(conn, tmp_collection):
         .windows(width=btrdb.utils.timez.ns_delta(nanoseconds=10))
     )
     values_arrow_df = ss.arrow_to_dataframe(agg=["mean", "stddev"])
-    values_arrow_df.set_index("time", inplace=True)
     values_arrow_df.index = pd.DatetimeIndex(values_arrow_df.index)
     values_non_arrow_df = ss.to_dataframe(agg="all")
     values_non_arrow_df.index = pd.DatetimeIndex(values_non_arrow_df.index, tz="UTC")
@@ -517,7 +512,6 @@ def test_timesnap_with_different_sampling_frequencies(freq, conn, tmp_collection
     df = stset.filter(
         start=start, end=stop, sampling_frequency=freq
     ).arrow_to_dataframe()
-    df.set_index("time", inplace=True)
     total_points = df.shape[0] * df.shape[1]
     total_raw_pts = len(v1) * len(stset)
     expected_frac_of_pts = 1 if freq is None else freq / data_insert_freq
