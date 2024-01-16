@@ -4,7 +4,7 @@ package v5api;
 
 service BTrDB {
   rpc RawValues(RawValuesParams) returns (stream RawValuesResponse);
-  rpc ArrowRawValues(RawValuesParams) returns (stream ArrowRawValuesResponse);
+  rpc ArrowRawValues(ArrowRawValuesParams) returns (stream ArrowRawValuesResponse);
   rpc ArrowMultiValues(ArrowMultiValuesParams) returns (stream ArrowMultiValuesResponse);
   rpc AlignedWindows(AlignedWindowsParams) returns (stream AlignedWindowsResponse);
   rpc ArrowAlignedWindows(AlignedWindowsParams) returns (stream ArrowAlignedWindowsResponse);
@@ -45,6 +45,13 @@ message RawValuesResponse {
   uint64 versionMinor = 3;
   repeated RawPoint values = 4;
 }
+message ArrowRawValuesParams {
+  bytes uuid = 1;
+  sfixed64 start = 2;
+  sfixed64 end = 3;
+  uint64 versionMajor = 4;
+  bytes templateBytes = 5;
+}
 message ArrowRawValuesResponse {
   Status stat = 1;
   uint64 versionMajor = 2;
@@ -57,6 +64,7 @@ message ArrowMultiValuesParams {
   sfixed64 start = 3;
   sfixed64 end = 4;
   int64 snapPeriodNs = 5;
+  bytes templateBytes = 6;
 }
 message ArrowMultiValuesResponse {
   Status stat = 1;

@@ -916,6 +916,7 @@ class Stream(object):
         retries=5,
         retry_delay=3,
         retry_backoff=4,
+        schema=None,
     ) -> pa.Table:
         """Read raw values from BTrDB between time [a, b) in nanoseconds.
 
@@ -931,6 +932,9 @@ class Stream(object):
             :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
         version: int, default: 0
             The version of the stream to be queried
+        schema: pyarrow.Schema
+            Optional arrow schema the server will cast the returned data to before sending it over
+            the network. You can use this to change the timestamp format, column names or data sizes.
         auto_retry: bool, default: False
             Whether to retry this request in the event of an error
         retries: int, default: 5
@@ -967,19 +971,20 @@ class Stream(object):
         start = to_nanoseconds(start)
         end = to_nanoseconds(end)
         arrow_and_versions = self._btrdb.ep.arrowRawValues(
-            uu=self.uuid, start=start, end=end, version=version
+            uu=self.uuid, start=start, end=end, version=version, schema=schema
         )
         tables = list(arrow_and_versions)
         if len(tables) > 0:
             tabs, ver = zip(*tables)
             return pa.concat_tables(tabs)
         else:
-            schema = pa.schema(
-                [
-                    pa.field("time", pa.timestamp("ns", tz="UTC"), nullable=False),
-                    pa.field("value", pa.float64(), nullable=False),
-                ]
-            )
+            if schema is None:
+                schema = pa.schema(
+                    [
+                        pa.field("time", pa.timestamp("ns", tz="UTC"), nullable=False),
+                        pa.field("value", pa.float64(), nullable=False),
+                    ]
+                )
             return pa.Table.from_arrays([pa.array([]), pa.array([])], schema=schema)
 
     @retry
@@ -1140,7 +1145,9 @@ class Stream(object):
         )
         if len(tables) > 0:
             tabs, ver = zip(*tables)
-            return pa.concat_tables(tabs).sort_by("time")
+            # assume that time column is the first column returned
+            time_col = tabs[0].column_names[0]
+            return pa.concat_tables(tabs).sort_by(time_col)
         else:
             schema = pa.schema(
                 [
@@ -1304,7 +1311,8 @@ class Stream(object):
         )
         if len(tables) > 0:
             tabs, ver = zip(*tables)
-            return pa.concat_tables(tabs).sort_by("time")
+            time_col = tabs[0].column_names[0]
+            return pa.concat_tables(tabs).sort_by(time_col)
         else:
             schema = pa.schema(
                 [
@@ -1684,6 +1692,7 @@ class StreamSetBase(Sequence):
         tags=None,
         annotations=None,
         sampling_frequency=None,
+        schema=None,
     ):
         """
         Provides a new StreamSet instance containing stored query parameters and
@@ -1721,6 +1730,9 @@ class StreamSetBase(Sequence):
             key/value pairs for filtering streams based on annotations
         sampling_frequency : float
             The sampling frequency of the data streams in Hz, set this if you want timesnapped values.
+        schema: pyarrow.Schema
+            Optional arrow schema the server will cast the returned data to before sending it over
+            the network. You can use this to change the timestamp format, column names or data sizes.
 
         Returns
         -------
@@ -1736,10 +1748,18 @@ class StreamSetBase(Sequence):
         """
 
         obj = self.clone()
-        if start is not None or end is not None or sampling_frequency is not None:
+        if (
+            start is not None
+            or end is not None
+            or sampling_frequency is not None
+            or schema is not None
+        ):
             obj.filters.append(
                 StreamFilter(
-                    start=start, end=end, sampling_frequency=sampling_frequency
+                    start=start,
+                    end=end,
+                    sampling_frequency=sampling_frequency,
+                    schema=schema,
                 )
             )
 
@@ -2102,6 +2122,8 @@ class StreamSetBase(Sequence):
                 params["end"] = filter.end
             if filter.sampling_frequency is not None:
                 params["sampling_frequency"] = filter.sampling_frequency
+            if filter.schema is not None:
+                params["schema"] = filter.schema
         return params
 
     def values_iter(self):
@@ -2142,6 +2164,10 @@ class StreamSetBase(Sequence):
             _ = params.pop("sampling_frequency", None)
 
         if self.pointwidth is not None:
+            if params.pop("schema", None) is not None:
+                raise NotImplementedError(
+                    "aligned windows queries do not yet support an arrow schema"
+                )
             # create list of stream.aligned_windows data
             params.update({"pointwidth": self.pointwidth})
             _ = params.pop("sampling_frequency", None)
@@ -2177,6 +2203,10 @@ class StreamSetBase(Sequence):
         elif self.width is not None and self.depth is not None:
             # create list of stream.windows data (the windows method should
             # prevent the possibility that only one of these is None)
+            if params.pop("schema", None) is not None:
+                raise NotImplementedError(
+                    "windows queries do not yet support an arrow schema"
+                )
             _ = params.pop("sampling_frequency", None)
             params.update({"width": self.width})
             windows_gen = self._btrdb._executor.map(
@@ -2215,17 +2245,20 @@ class StreamSetBase(Sequence):
             if len(table) > 0:
                 data = pa.concat_tables(table)
             else:
-                schema = pa.schema(
-                    [pa.field("time", pa.timestamp("ns", tz="UTC"), nullable=False)]
-                    + [
-                        pa.field(str(s.uuid), pa.float64(), nullable=False)
-                        for s in self._streams
-                    ],
-                )
+                schema = params.pop("schema", None)
+                if schema is None:
+                    schema = pa.schema(
+                        [pa.field("time", pa.timestamp("ns", tz="UTC"), nullable=False)]
+                        + [
+                            pa.field(str(s.uuid), pa.float64(), nullable=False)
+                            for s in self._streams
+                        ],
+                    )
                 data = pa.Table.from_arrays(
                     [pa.array([]) for i in range(1 + len(self._streams))], schema=schema
                 )
-        return data.sort_by("time")
+        time_col = data.column_names[0]
+        return data.sort_by(time_col)
 
     def __repr__(self):
         token = "stream" if len(self) == 1 else "streams"
@@ -2281,10 +2314,15 @@ class StreamFilter(object):
     """
 
     def __init__(
-        self, start: int = None, end: int = None, sampling_frequency: int = None
+        self,
+        start: int = None,
+        end: int = None,
+        sampling_frequency: int = None,
+        schema=None,
     ):
         self.start = to_nanoseconds(start) if start else None
         self.end = to_nanoseconds(end) if end else None
+        self.schema = schema
         self.sampling_frequency = sampling_frequency if sampling_frequency else None
 
         if self.start is None and self.end is None:

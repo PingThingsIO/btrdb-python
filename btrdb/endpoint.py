@@ -28,7 +28,7 @@ import io
 import typing
 import uuid
 
-from btrdb.exceptions import BTrDBError, check_proto_stat, error_handler
+from btrdb.exceptions import check_proto_stat, error_handler
 from btrdb.grpcinterface import btrdb_pb2, btrdb_pb2_grpc
 from btrdb.point import RawPoint
 from btrdb.utils.general import unpack_stream_descriptor
@@ -57,11 +57,21 @@ class Endpoint(object):
             yield result.values, result.versionMajor
 
     @error_handler
-    def arrowRawValues(self, uu, start, end, version=0):
+    def arrowRawValues(self, uu, start, end, version=0, schema=None):
         if pa is None:
             raise ImportError(_ARROW_IMPORT_MSG)
-        params = btrdb_pb2.RawValuesParams(
-            uuid=uu.bytes, start=start, end=end, versionMajor=version
+        templateBytes = b""
+        if schema is not None:
+            byte_io = io.BytesIO()
+            with pa.ipc.new_stream(sink=byte_io, schema=schema) as _:
+                pass
+            templateBytes = byte_io.getvalue()
+        params = btrdb_pb2.ArrowRawValuesParams(
+            uuid=uu.bytes,
+            start=start,
+            end=end,
+            versionMajor=version,
+            templateBytes=templateBytes,
         )
         for result in self.stub.ArrowRawValues(params):
             check_proto_stat(result.stat)
@@ -69,15 +79,24 @@ class Endpoint(object):
                 yield reader.read_all(), result.versionMajor
 
     @error_handler
-    def arrowMultiValues(self, uu_list, start, end, version_list, snap_periodNS):
+    def arrowMultiValues(
+        self, uu_list, start, end, version_list, snap_periodNS=None, schema=None
+    ):
         if pa is None:
             raise ImportError(_ARROW_IMPORT_MSG)
+        templateBytes = b""
+        if schema is not None:
+            byte_io = io.BytesIO()
+            with pa.ipc.new_stream(sink=byte_io, schema=schema) as _:
+                pass
+            templateBytes = byte_io.getvalue()
         params = btrdb_pb2.ArrowMultiValuesParams(
             uuid=[uu.bytes for uu in uu_list],
             start=start,
             end=end,
             versionMajor=[ver for ver in version_list],
             snapPeriodNs=int(snap_periodNS),
+            templateBytes=templateBytes,
         )
         for result in self.stub.ArrowMultiValues(params):
             check_proto_stat(result.stat)
