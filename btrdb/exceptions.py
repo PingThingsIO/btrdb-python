@@ -117,18 +117,21 @@ def handle_grpc_error(err):
 
     Parameters
     ----------
-    err: grpc.RpcError
+    err: Union[grpc.RpcError, btrdb.BTrDBError]
     """
     details = err.details()
-    if details == "[404] stream does not exist":
-        raise StreamNotFoundError("Stream not found with provided uuid") from None
-    elif details == "failed to connect to all addresses":
-        raise ConnectionError("Failed to connect to BTrDB") from None
-    elif any(str(e) in err.details() for e in BTRDB_SERVER_ERRORS):
-        raise BTRDBServerError("An error has occured with btrdb-server") from None
-    elif str(err.code()) == "StatusCode.PERMISSION_DENIED":
-        raise PermissionDenied(details) from None
-    raise BTrDBError(details) from None
+    if isinstance(err, BTrDBError):
+        if details == "[404] stream does not exist":
+            raise StreamNotFoundError("Stream not found with provided uuid") from None
+        elif details == "failed to connect to all addresses":
+            raise ConnectionError("Failed to connect to BTrDB") from None
+        elif any(str(e) in err.details() for e in BTRDB_SERVER_ERRORS):
+            raise BTRDBServerError("An error has occured with btrdb-server") from None
+        elif str(err.code()) == "StatusCode.PERMISSION_DENIED":
+            raise PermissionDenied(details) from None
+        raise BTrDBError(details) from None
+    else:
+        raise err
 
 
 def check_proto_stat(stat):
