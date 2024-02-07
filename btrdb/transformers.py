@@ -232,14 +232,16 @@ def arrow_to_dataframe(streamset, agg=None, name_callable=None) -> pd.DataFrame:
     tmp_df.index.name = time_col
     col_names = _stream_names(streamset, name_callable)
     col_names_map = {str(s.uuid): c for s, c in zip(streamset, col_names)}
-    tmp_df = tmp.rename(columns=lambda col_name: _rename(col_name, col_names_map))
+    tmp_df.rename(
+        columns=lambda col_name: _rename(col_name, col_names_map), inplace=True
+    )
     if not streamset.allow_window:
         usable_cols = []
         for column_str in tmp_df.columns:
             for agg_name in agg:
                 if agg_name in column_str:
                     usable_cols.append(column_str)
-        tmp_df = tmp_df.loc[["time"] + usable_cols]
+        tmp_df = tmp_df.loc[:, usable_cols]
 
     return tmp_df
 
