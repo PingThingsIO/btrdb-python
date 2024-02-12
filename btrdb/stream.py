@@ -17,12 +17,16 @@ Module for Stream and related classes
 import json
 import logging
 import re
+import uuid
 import uuid as uuidlib
 import warnings
 from collections import deque
 from collections.abc import Sequence
 from copy import deepcopy
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, Dict, List
+
+import pyarrow
+import pyarrow.compute as pc
 
 try:
     import pyarrow as pa
@@ -2183,22 +2187,26 @@ class StreamSetBase(Sequence):
             )
             stream_uus = [str(s.uuid) for s in self._streams]
             data = list(aligned_windows_gen)
-            tablex = data.pop(0)
-            uu = stream_uus.pop(0)
-            tab_columns = [
-                c if c == "time" else uu + "/" + c for c in tablex.column_names
-            ]
-            tablex = tablex.rename_columns(tab_columns)
-            if data:
-                for tab, uu in zip(data, stream_uus):
-                    tab_columns = [
-                        c if c == "time" else uu + "/" + c for c in tab.column_names
-                    ]
-                    tab = tab.rename_columns(tab_columns)
-                    tablex = tablex.join(tab, "time", join_type="full outer")
-                data = tablex
-            else:
-                data = tablex
+            table_joined = _merge_pyarrow_tables(
+                {uu: tab for uu, tab in zip(stream_uus, data)}
+            )
+            # tablex = data.pop(0)
+            # uu = stream_uus.pop(0)
+            # tab_columns = [
+            #     c if c == "time" else uu + "/" + c for c in tablex.column_names
+            # ]
+            # tablex = tablex.rename_columns(tab_columns)
+            # if data:
+            #     for tab, uu in zip(data, stream_uus):
+            #         tab_columns = [
+            #             c if c == "time" else uu + "/" + c for c in tab.column_names
+            #         ]
+            #         tab = tab.rename_columns(tab_columns)
+            #         tablex = tablex.join(tab, "time", join_type="full outer")
+            #     data = tablex
+            # else:
+            #     data = tablex
+            data = table_joined
 
         elif self.width is not None and self.depth is not None:
             # create list of stream.windows data (the windows method should
@@ -2217,22 +2225,27 @@ class StreamSetBase(Sequence):
             )
             stream_uus = [str(s.uuid) for s in self._streams]
             data = list(windows_gen)
-            tablex = data.pop(0)
-            uu = stream_uus.pop(0)
-            tab_columns = [
-                c if c == "time" else uu + "/" + c for c in tablex.column_names
-            ]
-            tablex = tablex.rename_columns(tab_columns)
-            if data:
-                for tab, uu in zip(data, stream_uus):
-                    tab_columns = [
-                        c if c == "time" else uu + "/" + c for c in tab.column_names
-                    ]
-                    tab = tab.rename_columns(tab_columns)
-                    tablex = tablex.join(tab, "time", join_type="full outer")
-                data = tablex
-            else:
-                data = tablex
+            table_joined = _merge_pyarrow_tables(
+                {uu: tab for uu, tab in zip(stream_uus, data)}
+            )
+            # print(test)
+            # tablex = data.pop(0)
+            # uu = stream_uus.pop(0)
+            # tab_columns = [
+            #     c if c == "time" else uu + "/" + c for c in tablex.column_names
+            # ]
+            # tablex = tablex.rename_columns(tab_columns)
+            # if data:
+            #     for tab, uu in zip(data, stream_uus):
+            #         tab_columns = [
+            #             c if c == "time" else uu + "/" + c for c in tab.column_names
+            #         ]
+            #         tab = tab.rename_columns(tab_columns)
+            #         tablex = tablex.join(tab, "time", join_type="full outer")
+            #     data = tablex
+            # else:
+            #     data = tablex
+            data = table_joined
         else:
             sampling_freq = params.pop("sampling_frequency", 0)
             period_ns = 0
@@ -2349,3 +2362,56 @@ def _coalesce_table_deque(tables: deque):
             t2, "time", join_type="full outer", right_suffix=f"_{idx}"
         )
     return main_table
+
+
+def _merge_pyarrow_tables(stream_map: Dict[uuid.UUID, pyarrow.Table]) -> pyarrow.Table:
+    """Return single pyarrow table that is merged (like a join).
+    Assumes that 'time', is the index column name. Each table have the same column names adn need to be unique
+    """
+
+    # Step 1: Concatenate all 'time' columns to find unique times
+    time_columns = [
+        table.column("time").combine_chunks() for table in stream_map.values()
+    ]
+    all_times = pa.concat_arrays(time_columns)
+    unique_times = pc.unique(all_times)
+
+    # Step 2: Determine the combined schema with unique columns
+    combined_schema = pa.schema([("time", unique_times.type)])
+    for uu, table in stream_map.items():
+        for col_name in table.column_names:
+            if col_name != "time":
+                combined_col_name = (
+                    f"{str(uu)}/{col_name}"  # Ensure unique column names
+                )
+                combined_schema = combined_schema.append(
+                    pa.field(combined_col_name, table.column(col_name).type)
+                )
+
+    # Step 3: Preallocate arrays for the schema with nulls for the length of unique times
+    preallocated_data = {
+        field.name: pa.array([None] * len(unique_times), type=field.type)
+        for field in combined_schema
+    }
+    preallocated_data["time"] = unique_times
+
+    # Step 4: Efficiently fill data for each table
+    for uu, table in stream_map.items():
+        time_indices = pc.index_in(table.column("time"), value_set=unique_times)
+        for col_name in table.column_names:
+            if col_name == "time":
+                continue
+            combined_col_name = (
+                f"{str(uu)}/{col_name}"  # Match the preallocated column name
+            )
+            # Use pc.take to fill data based on identified indices, allowing for nulls where times don't match
+            preallocated_data[combined_col_name] = pc.take(
+                table.column(col_name),
+                indices=time_indices,
+            )
+
+    # Step 5: Construct the final table from preallocated arrays
+    arrays = [preallocated_data[col] for col in combined_schema.names]
+    final_table = pa.Table.from_arrays(arrays=arrays, schema=combined_schema)
+
+    return final_table
