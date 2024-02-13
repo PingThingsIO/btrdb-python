@@ -2364,54 +2364,54 @@ def _coalesce_table_deque(tables: deque):
     return main_table
 
 
-def _merge_pyarrow_tables(stream_map: Dict[uuid.UUID, pyarrow.Table]) -> pyarrow.Table:
-    """Return single pyarrow table that is merged (like a join).
-    Assumes that 'time', is the index column name. Each table have the same column names adn need to be unique
-    """
+def _merge_pyarrow_tables(stream_map: Dict[uuid.UUID, pa.Table]) -> pa.Table:
+    unique_times = _prepare_unique_times(stream_map)
 
-    # Step 1: Concatenate all 'time' columns to find unique times
+    combined_schema = _build_combined_schema(stream_map, unique_times)
+
+    filled_columns = _fill_data(stream_map, combined_schema, unique_times)
+
+    final_table = pa.Table.from_arrays(filled_columns, schema=combined_schema)
+
+    return final_table
+
+
+def _prepare_unique_times(stream_map):
     time_columns = [
         table.column("time").combine_chunks() for table in stream_map.values()
     ]
-    all_times = pa.concat_arrays(time_columns)
-    unique_times = pc.unique(all_times)
+    all_times_combined = pa.concat_arrays(time_columns)
+    unique_times = pc.unique(all_times_combined)
+    return unique_times
 
-    # Step 2: Determine the combined schema with unique columns
-    combined_schema = pa.schema([("time", unique_times.type)])
+
+def _build_combined_schema(stream_map, unique_times):
+    schema_fields = [("time", unique_times.type)]
     for uu, table in stream_map.items():
         for col_name in table.column_names:
             if col_name != "time":
                 combined_col_name = (
                     f"{str(uu)}/{col_name}"  # Ensure unique column names
                 )
-                combined_schema = combined_schema.append(
-                    pa.field(combined_col_name, table.column(col_name).type)
-                )
+                schema_fields.append((combined_col_name, table.column(col_name).type))
+    return pa.schema(schema_fields)
 
-    # Step 3: Preallocate arrays for the schema with nulls for the length of unique times
+
+def _fill_data(stream_map, combined_schema, unique_times):
     preallocated_data = {
         field.name: pa.array([None] * len(unique_times), type=field.type)
         for field in combined_schema
     }
     preallocated_data["time"] = unique_times
 
-    # Step 4: Efficiently fill data for each table
     for uu, table in stream_map.items():
         time_indices = pc.index_in(table.column("time"), value_set=unique_times)
         for col_name in table.column_names:
             if col_name == "time":
                 continue
-            combined_col_name = (
-                f"{str(uu)}/{col_name}"  # Match the preallocated column name
-            )
-            # Use pc.take to fill data based on identified indices, allowing for nulls where times don't match
+            combined_col_name = f"{str(uu)}/{col_name}"
             preallocated_data[combined_col_name] = pc.take(
-                table.column(col_name),
-                indices=time_indices,
+                table.column(col_name), indices=time_indices
             )
 
-    # Step 5: Construct the final table from preallocated arrays
-    arrays = [preallocated_data[col] for col in combined_schema.names]
-    final_table = pa.Table.from_arrays(arrays=arrays, schema=combined_schema)
-
-    return final_table
+    return [preallocated_data[col] for col in combined_schema.names]
