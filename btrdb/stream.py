@@ -2366,18 +2366,16 @@ def _coalesce_table_deque(tables: deque):
 
 def _extract_unique_times(stream_map: Dict[uuid.UUID, pa.Table]) -> pa.Array:
     """Extracts and returns unique 'time' values from all tables."""
-    all_times = pa.concat_arrays(
-        [
-            table.column("time").combine_chunks()
-            for table in stream_map.values()
-            if table.num_rows > 0
-        ]
-    )
-    return (
-        pc.unique(all_times).sort()
-        if len(all_times) > 0
-        else pa.array([], type=pa.timestamp("ns"))
-    )
+    time_arrays = [
+        table.column("time").combine_chunks()
+        for table in stream_map.values()
+        if table.num_rows > 0
+    ]
+    if not time_arrays:  # Check if the list is empty
+        return pa.array([], type=pa.timestamp("ns"))
+
+    all_times = pa.concat_arrays(time_arrays)
+    return pc.unique(all_times).sort()
 
 
 def _build_combined_schema(
