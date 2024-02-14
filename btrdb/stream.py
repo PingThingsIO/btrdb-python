@@ -2364,48 +2364,51 @@ def _coalesce_table_deque(tables: deque):
     return main_table
 
 
-def _merge_pyarrow_tables(stream_map: Dict[uuid.UUID, pa.Table]) -> pa.Table:
-    unique_times = _prepare_unique_times(stream_map)
-
-    combined_schema = _build_combined_schema(stream_map, unique_times)
-
-    filled_columns = _fill_data(stream_map, combined_schema, unique_times)
-
-    final_table = pa.Table.from_arrays(filled_columns, schema=combined_schema)
-
-    return final_table
-
-
-def _prepare_unique_times(stream_map):
-    time_columns = [
-        table.column("time").combine_chunks() for table in stream_map.values()
-    ]
-    all_times_combined = pa.concat_arrays(time_columns)
-    unique_times = pc.unique(all_times_combined)
-    return unique_times
+def _extract_unique_times(stream_map: Dict[uuid.UUID, pa.Table]) -> pa.Array:
+    """Extracts and returns unique 'time' values from all tables."""
+    all_times = pa.concat_arrays(
+        [
+            table.column("time").combine_chunks()
+            for table in stream_map.values()
+            if table.num_rows > 0
+        ]
+    )
+    return (
+        pc.unique(all_times).sort()
+        if len(all_times) > 0
+        else pa.array([], type=pa.timestamp("ns"))
+    )
 
 
-def _build_combined_schema(stream_map, unique_times):
-    schema_fields = [("time", unique_times.type)]
+def _build_combined_schema(
+    stream_map: Dict[uuid.UUID, pa.Table], unique_times: pa.Array
+) -> pa.Schema:
+    """Constructs a combined schema for the merged table, ensuring unique column names."""
+    combined_schema = pa.schema([("time", unique_times.type)])
     for uu, table in stream_map.items():
         for col_name in table.column_names:
             if col_name != "time":
-                combined_col_name = (
-                    f"{str(uu)}/{col_name}"  # Ensure unique column names
+                combined_col_name = f"{str(uu)}/{col_name}"
+                combined_schema = combined_schema.append(
+                    pa.field(
+                        combined_col_name,
+                        table.column(col_name).type
+                        if table.num_rows > 0
+                        else pa.null(),
+                    )
                 )
-                schema_fields.append((combined_col_name, table.column(col_name).type))
-    return pa.schema(schema_fields)
+    return combined_schema
 
 
-def _fill_data(stream_map, combined_schema, unique_times):
-    preallocated_data = {
-        field.name: pa.array([None] * len(unique_times), type=field.type)
-        for field in combined_schema
-    }
-    preallocated_data["time"] = unique_times
-
-    for uu, table in stream_map.items():
-        time_indices = pc.index_in(table.column("time"), value_set=unique_times)
+def _fill_table_data(
+    table: pa.Table, uu: uuid.UUID, unique_times: pa.Array, combined_schema: pa.Schema
+) -> Dict[str, pa.Array]:
+    """Fills data for a given table based on unique 'time' values."""
+    preallocated_data = {}
+    if table.num_rows > 0:
+        time_indices = pc.index_in(
+            unique_times, value_set=table.column("time"), skip_nulls=True
+        )
         for col_name in table.column_names:
             if col_name == "time":
                 continue
@@ -2413,5 +2416,31 @@ def _fill_data(stream_map, combined_schema, unique_times):
             preallocated_data[combined_col_name] = pc.take(
                 table.column(col_name), indices=time_indices
             )
+    else:
+        # For empty tables, ensure their columns are represented with all nulls
+        for col_name in combined_schema.names:
+            if col_name.startswith(f"{str(uu)}/") and col_name not in preallocated_data:
+                field_type = combined_schema.field(col_name).type
+                preallocated_data[col_name] = pa.array(
+                    [None] * len(unique_times), type=field_type
+                )
+    return preallocated_data
 
-    return [preallocated_data[col] for col in combined_schema.names]
+
+def _merge_pyarrow_tables(stream_map: Dict[uuid.UUID, pa.Table]) -> pa.Table:
+    """Merges PyArrow tables based on 'time' values into a single table."""
+    unique_times = _extract_unique_times(stream_map)
+    combined_schema = _build_combined_schema(stream_map, unique_times)
+
+    preallocated_data = {
+        field.name: pa.array([None] * len(unique_times), type=field.type)
+        for field in combined_schema
+    }
+    preallocated_data["time"] = unique_times
+
+    for uu, table in stream_map.items():
+        table_data = _fill_table_data(table, uu, unique_times, combined_schema)
+        preallocated_data.update(table_data)
+
+    arrays = [preallocated_data[col] for col in combined_schema.names]
+    return pa.Table.from_arrays(arrays=arrays, schema=combined_schema)
