@@ -2387,7 +2387,7 @@ def _build_combined_schema(
         for col_name in table.column_names:
             if col_name != "time":
                 combined_col_name = f"{str(uu)}/{col_name}"
-                combined_schema = combined_schema.append(
+                combined_schema.append(
                     pa.field(
                         combined_col_name,
                         table.column(col_name).type
