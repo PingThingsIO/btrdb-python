@@ -2382,7 +2382,7 @@ def _build_combined_schema(
     stream_map: Dict[uuid.UUID, pa.Table], unique_times: pa.Array
 ) -> pa.Schema:
     """Constructs a combined schema for the merged table, ensuring unique column names."""
-    combined_schema = pa.schema([("time", unique_times.type)])
+    combined_schema = [("time", unique_times.type)]
     for uu, table in stream_map.items():
         for col_name in table.column_names:
             if col_name != "time":
@@ -2395,7 +2395,7 @@ def _build_combined_schema(
                         else pa.null(),
                     )
                 )
-    return combined_schema
+    return pa.schema(combined_schema)
 
 
 def _fill_table_data(
