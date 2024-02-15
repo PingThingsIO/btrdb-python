@@ -2399,13 +2399,15 @@ def _build_combined_schema(
 
 
 def _fill_table_data(
-    table: pa.Table, uu: uuid.UUID, unique_times: pa.Array, combined_schema: pa.Schema
+    table: pa.Table,
+    uu: uuid.UUID,
+    combined_schema: pa.Schema,
+    preallocated_data: dict,
 ) -> Dict[str, pa.Array]:
     """Fills data for a given table based on unique 'time' values."""
-    preallocated_data = {}
     if table.num_rows > 0:
         time_indices = pc.index_in(
-            unique_times, value_set=table.column("time"), skip_nulls=True
+            preallocated_data["time"], value_set=table.column("time"), skip_nulls=True
         )
         for col_name in table.column_names:
             if col_name == "time":
@@ -2420,7 +2422,7 @@ def _fill_table_data(
             if col_name.startswith(f"{str(uu)}/") and col_name not in preallocated_data:
                 field_type = combined_schema.field(col_name).type
                 preallocated_data[col_name] = pa.array(
-                    [None] * len(unique_times), type=field_type
+                    [None] * preallocated_data["time"].length(), type=field_type
                 )
     return preallocated_data
 
