@@ -2430,9 +2430,9 @@ def _merge_pyarrow_tables(stream_map: Dict[uuid.UUID, pa.Table]) -> pa.Table:
     unique_times = _extract_unique_times(stream_map)
     combined_schema = _build_combined_schema(stream_map, unique_times)
 
+    none_data = [None] * len(unique_times)
     preallocated_data = {
-        field.name: pa.array([None] * len(unique_times), type=field.type)
-        for field in combined_schema
+        field.name: pa.array(none_data, type=field.type) for field in combined_schema
     }
     preallocated_data["time"] = unique_times
 
