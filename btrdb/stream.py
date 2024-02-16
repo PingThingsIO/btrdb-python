@@ -2398,35 +2398,6 @@ def _build_combined_schema(
     return pa.schema(combined_schema)
 
 
-def _fill_table_data(
-    table: pa.Table,
-    uu: uuid.UUID,
-    combined_schema: pa.Schema,
-    preallocated_data: dict,
-) -> Dict[str, pa.Array]:
-    """Fills data for a given table based on unique 'time' values."""
-    if table.num_rows > 0:
-        time_indices = pc.index_in(
-            preallocated_data["time"], value_set=table.column("time"), skip_nulls=True
-        )
-        for col_name in table.column_names:
-            if col_name == "time":
-                continue
-            combined_col_name = f"{str(uu)}/{col_name}"
-            preallocated_data[combined_col_name] = pc.take(
-                table.column(col_name), indices=time_indices
-            )
-    else:
-        # For empty tables, ensure their columns are represented with all nulls
-        for col_name in combined_schema.names:
-            if col_name.startswith(f"{str(uu)}/") and col_name not in preallocated_data:
-                field_type = combined_schema.field(col_name).type
-                preallocated_data[col_name] = pa.array(
-                    [None] * preallocated_data["time"].length(), type=field_type
-                )
-    return preallocated_data
-
-
 def _merge_pyarrow_tables(stream_map: Dict[uuid.UUID, pa.Table]) -> pa.Table:
     """Merges PyArrow tables based on 'time' values into a single table."""
     unique_times = _extract_unique_times(stream_map)
@@ -2439,8 +2410,30 @@ def _merge_pyarrow_tables(stream_map: Dict[uuid.UUID, pa.Table]) -> pa.Table:
     preallocated_data["time"] = unique_times
 
     for uu, table in stream_map.items():
-        table_data = _fill_table_data(table, uu, unique_times, combined_schema)
-        preallocated_data.update(table_data)
+        if table.num_rows > 0:
+            time_indices = pc.index_in(
+                preallocated_data["time"],
+                value_set=table.column("time"),
+                skip_nulls=True,
+            )
+            for col_name in table.column_names:
+                if col_name == "time":
+                    continue
+                combined_col_name = f"{str(uu)}/{col_name}"
+                preallocated_data[combined_col_name] = pc.take(
+                    table.column(col_name), indices=time_indices
+                )
+        else:
+            # For empty tables, ensure their columns are represented with all nulls
+            for col_name in combined_schema.names:
+                if (
+                    col_name.startswith(f"{str(uu)}/")
+                    and col_name not in preallocated_data
+                ):
+                    field_type = combined_schema.field(col_name).type
+                    preallocated_data[col_name] = pa.array(
+                        [None] * preallocated_data["time"].length(), type=field_type
+                    )
 
     arrays = [preallocated_data[col] for col in combined_schema.names]
     return pa.Table.from_arrays(arrays=arrays, schema=combined_schema)
