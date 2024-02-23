@@ -2350,18 +2350,17 @@ def _build_combined_schema(
 ) -> pa.Schema:
     """Constructs a combined schema for the merged table, ensuring unique column names."""
     combined_schema = [("time", unique_times.type)]
-    for uu, table in stream_map.items():
-        for col_name in table.column_names:
-            if col_name != "time":
-                combined_col_name = f"{str(uu)}/{col_name}"
-                combined_schema.append(
-                    pa.field(
-                        combined_col_name,
-                        table.column(col_name).type
-                        if table.num_rows > 0
-                        else pa.null(),
-                    )
-                )
+    # Use a list comprehension to flatten the loop into a single iterable over all columns
+    combined_schema += [
+        pa.field(
+            f"{uu}/{col_name}",
+            table.column(col_name).type if table.num_rows > 0 else pa.null(),
+        )
+        for uu, table in stream_map.items()
+        for col_name in table.column_names
+        if col_name != "time"
+    ]
+
     return pa.schema(combined_schema)
 
 
