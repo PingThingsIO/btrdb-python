@@ -76,7 +76,7 @@ protobuf==4.23.2
     # via
     #   grpcio-tools
     #   ray
-pyarrow==12.0.0
+pyarrow==14.0.1
     # via btrdb
 pycodestyle==2.10.0
     # via flake8
