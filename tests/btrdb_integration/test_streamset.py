@@ -209,7 +209,46 @@ def test_streamset_arrow_aligned_windows_vs_aligned_windows(
     ss = (
         btrdb.stream.StreamSet([s1, s2, s3])
         .filter(start=100, end=121)
-        .windows(width=btrdb.utils.general.pointwidth.from_nanoseconds(10))
+        .aligned_windows(pointwidth=btrdb.utils.general.pointwidth.from_nanoseconds(10))
+    )
+    values_arrow = ss.arrow_to_dataframe(name_callable=name_callable)
+    values_arrow.index = pd.DatetimeIndex(values_arrow.index)
+    values_prev = ss.to_dataframe(
+        name_callable=name_callable
+    )  # .convert_dtypes(dtype_backend='pyarrow')
+    values_prev = values_prev.apply(lambda x: x.astype(str(x.dtype) + "[pyarrow]"))
+    values_prev = values_prev.apply(
+        lambda x: x.astype("uint64[pyarrow]") if "count" in x.name else x
+    )
+    values_prev.index = pd.DatetimeIndex(values_prev.index, tz="UTC")
+    col_map = {old_col: old_col + "/mean" for old_col in values_prev.columns}
+    values_prev = values_prev.rename(columns=col_map)
+    assert values_arrow.equals(values_prev)
+
+
+@pytest.mark.parametrize(
+    "name_callable",
+    [(None), (lambda s: str(s.uuid)), (lambda s: s.name + "/" + s.collection)],
+    ids=["empty", "uu_as_str", "name_collection"],
+)
+def test_streamset_arrow_aligned_windows_join_logic(
+    conn, tmp_collection, name_callable
+):
+    s1 = conn.create(new_uuid(), tmp_collection, tags={"name": "s1"})
+    s2 = conn.create(new_uuid(), tmp_collection, tags={"name": "s2"})
+    s3 = conn.create(new_uuid(), tmp_collection, tags={"name": "s3"})
+    t1 = [100, 105, 110, 115, 120]
+    t2 = [101, 106, 110, 132, 140]
+    d1 = [0.0, 1.0, 2.0, 3.0, 4.0]
+    d2 = [5.0, 6.0, 7.0, 8.0, 9.0]
+    d3 = [1.0, 9.0, 44.0, 8.0, 9.0]
+    s1.insert(list(zip(t1, d1)))
+    s2.insert(list(zip(t2, d2)))
+    s3.insert(list(zip(t2, d3)))
+    ss = (
+        btrdb.stream.StreamSet([s1, s2, s3])
+        .filter(start=100, end=141)
+        .aligned_windows(pointwidth=btrdb.utils.general.pointwidth.from_nanoseconds(8))
     )
     values_arrow = ss.arrow_to_dataframe(name_callable=name_callable)
     values_arrow.index = pd.DatetimeIndex(values_arrow.index)
