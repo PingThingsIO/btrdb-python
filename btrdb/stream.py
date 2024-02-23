@@ -2190,22 +2190,6 @@ class StreamSetBase(Sequence):
             table_joined = _merge_pyarrow_tables(
                 {uu: tab for uu, tab in zip(stream_uus, data)}
             )
-            # tablex = data.pop(0)
-            # uu = stream_uus.pop(0)
-            # tab_columns = [
-            #     c if c == "time" else uu + "/" + c for c in tablex.column_names
-            # ]
-            # tablex = tablex.rename_columns(tab_columns)
-            # if data:
-            #     for tab, uu in zip(data, stream_uus):
-            #         tab_columns = [
-            #             c if c == "time" else uu + "/" + c for c in tab.column_names
-            #         ]
-            #         tab = tab.rename_columns(tab_columns)
-            #         tablex = tablex.join(tab, "time", join_type="full outer")
-            #     data = tablex
-            # else:
-            #     data = tablex
             data = table_joined
 
         elif self.width is not None and self.depth is not None:
@@ -2228,23 +2212,6 @@ class StreamSetBase(Sequence):
             table_joined = _merge_pyarrow_tables(
                 {uu: tab for uu, tab in zip(stream_uus, data)}
             )
-            # print(test)
-            # tablex = data.pop(0)
-            # uu = stream_uus.pop(0)
-            # tab_columns = [
-            #     c if c == "time" else uu + "/" + c for c in tablex.column_names
-            # ]
-            # tablex = tablex.rename_columns(tab_columns)
-            # if data:
-            #     for tab, uu in zip(data, stream_uus):
-            #         tab_columns = [
-            #             c if c == "time" else uu + "/" + c for c in tab.column_names
-            #         ]
-            #         tab = tab.rename_columns(tab_columns)
-            #         tablex = tablex.join(tab, "time", join_type="full outer")
-            #     data = tablex
-            # else:
-            #     data = tablex
             data = table_joined
         else:
             sampling_freq = params.pop("sampling_frequency", 0)
