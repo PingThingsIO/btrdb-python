@@ -21,7 +21,7 @@ import os
 import re
 import uuid as uuidlib
 from concurrent.futures import ThreadPoolExecutor
-from typing import List
+from typing import List, Tuple, Union
 from warnings import warn
 
 import certifi
@@ -208,8 +208,8 @@ class BTrDB(object):
     @retry
     def query(
         self,
-        stmt,
-        params=None,
+        stmt: str,
+        params: Union[Tuple[str], List[str]] = None,
         auto_retry=False,
         retries=5,
         retry_delay=3,
@@ -250,10 +250,23 @@ class BTrDB(object):
         Notes
         -------
         Parameters will be inserted into the SQL statement as noted by the
-        paramter number such as `$1`, `$2`, or `$3`.  The `streams` table is
+        parameter number such as `$1`, `$2`, or `$3`.  The `streams` table is
         available for `SELECT` statements only.
 
         See https://btrdb.readthedocs.io/en/latest/ for more info.
+
+
+        Examples
+        --------
+        >>> conn = btrdb.connect()
+        >>> conn.query("SELECT COUNT(uuid) FROM streams")
+        <[{'count': ...}]>
+
+        >>> conn.query("SELECT COUNT(uuid) FROM streams WHERE collection=$1::text", params=["foo/bar"])
+        <[{'count': ...}]>
+
+        >>> conn.query("SELECT COUNT(uuid) FROM streams WHERE annotations->$1::text IS NOT NULL", params=["foo"])
+        <[{'count': ...}]>
         """
         if params is None:
             params = list()
@@ -273,11 +286,15 @@ class BTrDB(object):
         ----------
         identifiers: str or UUID
             a single item or iterable of items which can be used to query for
-            streams.  identiers are expected to be UUID as string, UUID as UUID,
+            streams. Identifiers are expected to be UUID as string, UUID as UUID,
             or collection/name string.
 
         versions: list[int]
             a single or iterable of version numbers to match the identifiers
+
+        is_collection_prefix: bool, default=False
+            If providing a collection string, is that string just a prefix, or the entire collection name?
+            This will impact how many streams are returned.
 
         """
         if versions is not None and not isinstance(versions, list):
@@ -371,7 +388,7 @@ class BTrDB(object):
         collection: str, required
             The collection string prefix that the stream will belong to.
         tags: dict, required
-            The tags-level immutable metadata key:value pairs.
+            The tags-level metadata key:value pairs.
         annotations: dict, optional
             The mutable metadata of the stream, key:value pairs
         auto_retry: bool, default: False
@@ -390,6 +407,18 @@ class BTrDB(object):
         -------
         Stream
             instance of Stream class
+
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> from uuid import uuid4 # this generates a random uuid
+        >>> conn = btrdb.connect()
+        >>> collection = "new/stream/collection"
+        >>> tags = {"name":"foo", "unit":"V"}
+        >>> annotations = {"bar": "baz"}
+        >>> s = conn.create(uuid=uuid4(), tags=tags, annotations=annotations, collection=collection)
+        <Stream collection=new/stream/collection name=foo>
         """
 
         if tags is None:

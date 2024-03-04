@@ -11,6 +11,17 @@ def test_connection_info(conn):
     logging.info(f"connection info: {info}")
 
 
+@pytest.mark.xfail(
+    reason="Should return BTrDBError, but returns GRPCError instead, FIXME"
+)
+def test_from_uuid(conn):
+    # todo, investigate this, the stat code returned is 0, which is why its not being returned as a btrdb error
+    uu = new_uuid()
+    stream = conn.stream_from_uuid(uu)
+    with pytest.raises(btrdb.exceptions.BTrDBError):
+        print(stream)
+
+
 def test_create_stream(conn, tmp_collection):
     uuid = new_uuid()
     stream = conn.create(uuid, tmp_collection, tags={"name": "s"})

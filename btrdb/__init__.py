@@ -63,7 +63,7 @@ def connect(conn_str=None, apikey=None, profile=None, shareable=False):
         found in the user's predictive grid credentials file
         `~/.predictivegrid/credentials.yaml`.
     shareable: bool, default=False
-        Whether or not the connection can be "shared" in a distributed setting such
+        Whether the connection can be "shared" in a distributed setting such
         as Ray workers. If set to True, the connection can be serialized and sent
         to other workers so that data can be retrieved in parallel; **however**, this
         is less secure because it is possible for other users of the Ray cluster to
@@ -73,6 +73,17 @@ def connect(conn_str=None, apikey=None, profile=None, shareable=False):
     -------
     db : BTrDB
         An instance of the BTrDB context to directly interact with the database.
+
+    Examples
+    --------
+    >>> conn = btrdb.connect() # This looks for the env variables: BTRDB_ENDPOINTS and BTRDB_API_KEY
+    <btrdb.conn.BTrDB at 0x...>
+
+    >>> conn = btrdb.connect(profile='test') # requires a ${HOME}/.predictivegrid/credentials.yaml file present
+    <btrdb.conn.BTrDB at 0x...>
+
+    >>> conn = btrdb.connect(conn_str="192.168.1.1:4411", apikey="NONSENSICAL_API_KEY")
+
 
     """
     # do not allow user to provide both address and profile
