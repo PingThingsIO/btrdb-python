@@ -28,7 +28,7 @@ import certifi
 import grpc
 from grpc._cython.cygrpc import CompressionAlgorithm
 
-from btrdb.exceptions import InvalidOperation, StreamNotFoundError, retry
+from btrdb.exceptions import BTrDBError, InvalidOperation, StreamNotFoundError, retry
 from btrdb.stream import Stream, StreamSet
 from btrdb.utils.conversion import to_uuid
 from btrdb.utils.general import unpack_stream_descriptor
@@ -197,6 +197,10 @@ class BTrDB(object):
 
     def __init__(self, endpoint):
         self.ep = endpoint
+        try:
+            _ = self.ep.info()
+        except Exception as err:
+            raise BTrDBError(f"Could not connect to the database, error message: {err}")
         self._executor = ThreadPoolExecutor()
         try:
             self._ARROW_ENABLED = _is_arrow_enabled(self.ep.info())

@@ -52,16 +52,16 @@ def connect(conn_str=None, apikey=None, profile=None, shareable=False):
     Parameters
     ----------
     conn_str: str, default=None
-        The address and port of the cluster to connect to, e.g. `192.168.1.1:4411`.
-        If set to None, will look in the environment variable `$BTRDB_ENDPOINTS`
+        The address and port of the cluster to connect to, e.g. ``192.168.1.1:4411``.
+        If set to None, will look in the environment variable ``$BTRDB_ENDPOINTS``
         (recommended).
     apikey: str, default=None
         The API key used to authenticate requests (optional). If None, the key
-        is looked up from the environment variable `$BTRDB_API_KEY`.
+        is looked up from the environment variable ``$BTRDB_API_KEY``.
     profile: str, default=None
         The name of a profile containing the required connection information as
         found in the user's predictive grid credentials file
-        `~/.predictivegrid/credentials.yaml`.
+        ``~/.predictivegrid/credentials.yaml``.
     shareable: bool, default=False
         Whether the connection can be "shared" in a distributed setting such
         as Ray workers. If set to True, the connection can be serialized and sent
@@ -76,12 +76,19 @@ def connect(conn_str=None, apikey=None, profile=None, shareable=False):
 
     Examples
     --------
-    >>> conn = btrdb.connect() # This looks for the env variables: BTRDB_ENDPOINTS and BTRDB_API_KEY
+    This example looks for the env variables: ``BTRDB_ENDPOINTS`` and ``BTRDB_API_KEY``.
+
+    >>> conn = btrdb.connect()
     <btrdb.conn.BTrDB at 0x...>
 
-    >>> conn = btrdb.connect(profile='test') # requires a ${HOME}/.predictivegrid/credentials.yaml file present
+
+    Connect to the platform by looking for the relevant platform profile
+    in ``${HOME}/.predictivegrid/credentials.yaml`` if the file is present.
+
+    >>> conn = btrdb.connect(profile='test')
     <btrdb.conn.BTrDB at 0x...>
 
+    If you provide incorrect credentials, you will get an error.
     >>> conn = btrdb.connect(conn_str="192.168.1.1:4411", apikey="NONSENSICAL_API_KEY")
 
 
