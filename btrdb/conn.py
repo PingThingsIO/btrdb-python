@@ -60,6 +60,10 @@ class Connection(object):
         apikey: str, optional
             The optional API key to authenticate requests
 
+        Notes
+        -----
+        The ``btrdb.connect`` method is a helper function to make connecting to the platform easier
+            usually that will be sufficient for most users.
         """
         addrport = addrportstr.split(":", 2)
         # 100MB size limit ~ 2500 streams for 5000 points with each point being 64bit
@@ -264,13 +268,13 @@ class BTrDB(object):
         --------
         >>> conn = btrdb.connect()
         >>> conn.query("SELECT COUNT(uuid) FROM streams")
-        <[{'count': ...}]>
+        [{'count': ...}]
 
         >>> conn.query("SELECT COUNT(uuid) FROM streams WHERE collection=$1::text", params=["foo/bar"])
-        <[{'count': ...}]>
+        [{'count': ...}]
 
         >>> conn.query("SELECT COUNT(uuid) FROM streams WHERE annotations->$1::text IS NOT NULL", params=["foo"])
-        <[{'count': ...}]>
+        [{'count': ...}]
         """
         if params is None:
             params = list()
@@ -284,7 +288,7 @@ class BTrDB(object):
         """
         Returns a StreamSet object with BTrDB streams from the supplied
         identifiers.  If any streams cannot be found matching the identifier
-        than StreamNotFoundError will be returned.
+        then a ``StreamNotFoundError`` will be returned.
 
         Parameters
         ----------
@@ -299,6 +303,34 @@ class BTrDB(object):
         is_collection_prefix: bool, default=False
             If providing a collection string, is that string just a prefix, or the entire collection name?
             This will impact how many streams are returned.
+
+        Examples
+        --------
+        With a sequence of uuids.
+
+        >>> conn = btrdb.connect()
+        >>> conn.streams(identifiers=list_of_uuids)
+        <btrdb.stream.StreamSet at 0x...>
+
+        With a sequence of uuids and version numbers.
+        Here we are using version 0 to use the latest data points.
+
+        >>> conn.streams(identifiers=list_of_uuids, versions=[0 for _ in list_of_uuids])
+        <btrdb.stream.StreamSet at 0x...>
+
+        Filtering by ``collection`` prefix ``"foo"`` where multiple collections exist like the following:
+        ``foo/bar``, ``foo/baz``, ``foo/bar/new``, and ``foo``.
+        If we set `is_collection_prefix`` to ``True``, this will return all streams that exist in the collections defined above.
+        It is similar to a regex pattern ``^foo.*`` for matching purposes.
+
+        >>> conn.streams(identifiers="foo", is_collection_prefix=True)
+        <btrdb.stream.StreamSet at 0x...>
+
+        If you set ``is_collection_prefix`` to ``False``, this will assume that the string identifier you provide is the full collection name.
+        Matching like the regex here: ``^foo``
+
+        >>> conn.streams(identifiers="foo", is_collection_prefix=False)
+        <btrdb.stream.StreamSet at 0x...>
 
         """
         if versions is not None and not isinstance(versions, list):
@@ -444,7 +476,7 @@ class BTrDB(object):
 
     def info(self):
         """
-        Returns information about the connected BTrDB server.
+        Returns information about the platform proxy server.
 
         Returns
         -------
@@ -473,6 +505,20 @@ class BTrDB(object):
         Returns
         -------
         collections: List[str]
+
+        Examples
+        --------
+
+        Assuming we have the following collections in the platform:
+        ``foo``, ``bar``, ``foo/baz``, ``bar/baz``
+
+        >>> conn = btrdb.connect()
+        >>> conn.list_collections().sort()
+        ["bar", "bar/baz", "foo", "foo/bar"]
+
+        >>> conn.list_collections(starts_with="foo")
+        ["foo", "foo/bar"]
+
 
         """
         return [c for some in self.ep.listCollections(starts_with) for c in some]
@@ -582,6 +628,24 @@ class BTrDB(object):
         list
             A list of stream objects found with the provided search arguments.
 
+        Examples
+        --------
+
+        >>> conn = btrdb.connect()
+        >>> conn.streams_in_collection(collection="foo", is_collection_prefix=True)
+        [<Stream collection=foo name=test1>, <Stream collection=foo name=test2,
+        ... <Stream collection=foo/bar, name=testX>, <Stream collection=foo/baz/bar name=testY>]
+
+        >>> conn.streams_in_collection(collection="foo", is_collection_prefix=False)
+        [<Stream collection=foo, name=test1>, <Stream collection=foo, name=test2>]
+
+        >>> conn.streams_in_collection(collection="foo",
+        ...  is_collection_prefix=False, tags={"unit":"Volts"})
+        [<Stream collection=foo, name=test1>]
+
+        >>> conn.streams_in_collection(collection="foo",
+        ...  is_collection_prefix=False, tags={"unit":"UNKNOWN"})
+        []
         """
         result = []
 
