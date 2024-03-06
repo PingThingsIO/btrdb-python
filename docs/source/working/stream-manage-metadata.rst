@@ -102,7 +102,7 @@ that the data has already been changed by another user or process.
         annotations=annotations
     )
 
-If you would like to remove any keys from your annotations you must use the `replace=True` keyword argument.  This will ensure that the annotations dictionary you provide completely replaces the existing values rather than perform an UPSERT operation.  The example below shows how you could remove an existing key from the annotations dictionary.
+If you would like to remove any keys from your annotations you must use the :code:`replace=True` keyword argument.  This will ensure that the annotations dictionary you provide completely replaces the existing values rather than perform an UPSERT operation.  The example below shows how you could remove an existing key from the annotations dictionary.
 
 .. code-block:: python
 

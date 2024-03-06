@@ -94,6 +94,10 @@ def to_series(streamset, datetime64_index=True, agg="mean", name_callable=None):
         Specify a callable that can be used to determine the series name given a
         Stream object.
 
+    Notes
+    -----
+    This method does **not** use the ``arrow`` -accelerated endpoints for faster and more efficient data retrieval.
+
     """
     if pd is None:
         raise ImportError(_IMPORT_ERR_MSG.format("pandas"))
@@ -263,6 +267,9 @@ def to_dataframe(streamset, agg="mean", name_callable=None):
         Stream object.  This is not compatible with agg == "all" at this time
 
 
+    Notes
+    -----
+    This method does **not** use the ``arrow`` -accelerated endpoints for faster and more efficient data retrieval.
     """
     if pd is None:
         raise ImportError(_IMPORT_ERR_MSG.format("pandas"))
@@ -371,6 +378,12 @@ def to_polars(streamset, agg="mean", name_callable=None):
     name_callable : lambda, default: lambda s: s.collection + "/" +  s.name
         Specify a callable that can be used to determine the series name given a
         Stream object.  This is not compatible with agg == "all" at this time
+
+
+
+    Notes
+    -----
+    This method does **not** use the ``arrow`` -accelerated endpoints for faster and more efficient data retrieval.
     """
     if pl is None or pd is None:
         raise ImportError(_IMPORT_ERR_MSG.format(",".join(["polars", "pandas"])))
@@ -425,6 +438,10 @@ def to_array(streamset, agg="mean"):
         arrays. Must be one of "min", "mean", "max", "count", or "stddev". This
         argument is ignored if RawPoint values are passed into the function.
 
+
+    Notes
+    -----
+    This method does **not** use the ``arrow`` -accelerated endpoints for faster and more efficient data retrieval.
     """
     if np is None:
         raise ImportError(_IMPORT_ERR_MSG.format("numpy"))
@@ -489,6 +506,10 @@ def to_dict(streamset, agg="mean", name_callable=None):
         Specify a callable that can be used to determine the series name given a
         Stream object.
 
+
+    Notes
+    -----
+    This method does **not** use the ``arrow`` -accelerated endpoints for faster and more efficient data retrieval.
     """
     if not callable(name_callable):
         name_callable = lambda s: s.collection + "/" + s.name
@@ -582,6 +603,11 @@ def to_csv(
     name_callable : lambda, default: lambda s: s.collection + "/" +  s.name
         Specify a callable that can be used to determine the series name given a
         Stream object.
+
+
+    Notes
+    -----
+    This method does **not** use the ``arrow`` -accelerated endpoints for faster and more efficient data retrieval.
     """
 
     # TODO: allow this at some future point
@@ -631,6 +657,10 @@ def to_table(streamset, agg="mean", name_callable=None):
         Specify a callable that can be used to determine the column name given a
         Stream object.
 
+
+    Notes
+    -----
+    This method does **not** use the ``arrow`` -accelerated endpoints for faster and more efficient data retrieval.
     """
     try:
         from tabulate import tabulate

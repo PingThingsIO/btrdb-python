@@ -263,15 +263,40 @@ class BTrDB(object):
 
         See https://btrdb.readthedocs.io/en/latest/ for more info.
 
+        The following are the queryable columns in the postgres ``streams`` table.
+
+        +------------------+------------------------+-----------+
+        |      Column      |          Type          | Nullable  |
+        +==================+========================+===========+
+        | uuid             | uuid                   | not null  |
+        +------------------+------------------------+-----------+
+        | collection       | character varying(256) | not null  |
+        +------------------+------------------------+-----------+
+        | name             | character varying(256) | not null  |
+        +------------------+------------------------+-----------+
+        | unit             | character varying(256) | not null  |
+        +------------------+------------------------+-----------+
+        | ingress          | character varying(256) | not null  |
+        +------------------+------------------------+-----------+
+        | property_version | bigint                 | not null  |
+        +------------------+------------------------+-----------+
+        | annotations      | hstore                 |           |
+        +------------------+------------------------+-----------+
 
         Examples
         --------
+        Count all streams in the platform.
+
         >>> conn = btrdb.connect()
         >>> conn.query("SELECT COUNT(uuid) FROM streams")
         [{'count': ...}]
 
+        Count all streams in the collection ``foo/bar`` by passing in the variable as a parameter.
+
         >>> conn.query("SELECT COUNT(uuid) FROM streams WHERE collection=$1::text", params=["foo/bar"])
         [{'count': ...}]
+
+        Count all streams in the platform that has a non-null entry for the metadata annotation ``foo``.
 
         >>> conn.query("SELECT COUNT(uuid) FROM streams WHERE annotations->$1::text IS NOT NULL", params=["foo"])
         [{'count': ...}]
@@ -551,6 +576,12 @@ class BTrDB(object):
         Returns
         -------
         annotations: list[str]
+
+        Notes
+        -----
+        This query treats the ``collection`` string as a prefix, so ``collection="foo"`` will match with the following wildcard syntax ``foo%``.
+        If you only want to filter for a single collection, you will need to provide the full collection, if there are other collections
+        that match the ``foo%`` pattern, you might need to use a custom SQL query using ``conn.query``.
         """
         return self._list_unique_tags_annotations("annotations", collection)
 
@@ -625,8 +656,12 @@ class BTrDB(object):
 
         Returns
         ------
-        list
-            A list of stream objects found with the provided search arguments.
+        list[Stream]
+            A list of ``Stream`` objects found with the provided search arguments.
+
+        Notes
+        -----
+        In a future release, the default return value of this function will be a ``StreamSet``
 
         Examples
         --------
@@ -678,7 +713,7 @@ class BTrDB(object):
                     )
         # TODO: In future release update this method to return a streamset object.
         warn(
-            "StreamSet will be returned in a future release.",
+            "StreamSet will be the default return object for ``streams_in_collection`` in a future release.",
             FutureWarning,
             stacklevel=2,
         )
@@ -695,7 +730,7 @@ class BTrDB(object):
     ):
         """
         Gives statistics about metadata for collections that match a
-        prefix.
+        ``prefix``.
 
         Parameters
         ----------

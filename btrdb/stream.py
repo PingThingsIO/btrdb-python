@@ -629,6 +629,35 @@ class Stream(object):
         Notes
         -----
         This method is available for commercial customers with arrow-enabled servers.
+
+        Examples
+        --------
+        Assuming we have a sequence of ``times`` and ``values`` where ``times`` are in nanoseconds.
+        Insert the data as a pyarrow table, and if there are duplicate timestamps already in the database,
+        replace with the new ones in ``payload``.
+
+        >>> conn = btrdb.connect()
+        >>> import pyarrow as pa
+        >>> for t, v in zip(times, vals):
+        ...     print(t,v)
+        1500000000000000000 1.0
+        1500000000100000000 2.0
+        1500000000200000000 3.0
+        1500000000300000000 4.0
+        1500000000400000000 5.0
+        1500000000500000000 6.0
+        1500000000600000000 7.0
+        1500000000700000000 8.0
+        1500000000800000000 9.0
+        1500000000900000000 10.0
+        >>> schema = pa.schema(
+        ... [
+        ...    pa.field("time", pa.timestamp("ns", tz="UTC"), nullable=False),
+        ...    pa.field("value", pa.float64(), nullable=False),
+        ... ]
+        ... )
+        >>> payload = pa.Table.from_arrays([times, vals], schema=schema)
+        >>> version = stream.arrow_insert(payload, merge="replace")
         """
         if not self._btrdb._ARROW_ENABLED:
             raise NotImplementedError(_arrow_not_impl_str.format("arrow_insert"))
@@ -967,6 +996,12 @@ class Stream(object):
         the vector nodes.
 
         This method is available for commercial customers with arrow-enabled servers.
+
+
+        Examples
+        --------
+
+
         """
         if not self._btrdb._ARROW_ENABLED:
             raise NotImplementedError(_arrow_not_impl_str.format("arrow_values"))
