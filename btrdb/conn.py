@@ -55,9 +55,9 @@ class Connection(object):
 
         Parameters
         ----------
-        addrportstr: str, required
+        addrportstr : str, required
             The address of the cluster to connect to, e.g 123.123.123:4411
-        apikey: str, optional
+        apikey : str, optional
             The optional API key to authenticate requests
 
         Notes
@@ -229,23 +229,23 @@ class BTrDB(object):
 
         Parameters
         ----------
-        stmt: str
+        stmt : str
             a SQL statement to be executed on the BTrDB metadata.  Available
             tables are noted below.  To sanitize inputs use a `$1` style parameter such as
             `select * from streams where name = $1 or name = $2`.
-        params: list or tuple
+        params : list or tuple
             a list of parameter values to be sanitized and interpolated into the
             SQL statement. Using parameters forces value/type checking and is
             considered a best practice at the very least.
-        auto_retry: bool, default: False
+        auto_retry : bool, default: False
             Whether to retry this request in the event of an error
-        retries: int, default: 5
+        retries : int, default: 5
             Number of times to retry this request if there is an error. Will
             be ignored if auto_retry is False
-        retry_delay: int, default: 3
+        retry_delay : int, default: 3
             initial time to wait before retrying function call if there is an error.
             Will be ignored if auto_retry is False
-        retry_backoff: int, default: 4
+        retry_backoff : int, default: 4
             Exponential factor by which the backoff increases between retries.
             Will be ignored if auto_retry is False
 
@@ -317,17 +317,23 @@ class BTrDB(object):
 
         Parameters
         ----------
-        identifiers: str or UUID
+        identifiers : str or UUID
             a single item or iterable of items which can be used to query for
             streams. Identifiers are expected to be UUID as string, UUID as UUID,
             or collection/name string.
 
-        versions: list[int]
+        versions : list[int]
             a single or iterable of version numbers to match the identifiers
 
-        is_collection_prefix: bool, default=False
+        is_collection_prefix : bool, default=False
             If providing a collection string, is that string just a prefix, or the entire collection name?
             This will impact how many streams are returned.
+
+
+        Returns
+        -------
+        :class:`StreamSet`
+            Collection of streams.
 
         Examples
         --------
@@ -416,7 +422,7 @@ class BTrDB(object):
 
         Parameters
         ----------
-        uuid: UUID
+        uuid : UUID
             The uuid of the requested stream.
 
         Returns
@@ -444,23 +450,23 @@ class BTrDB(object):
 
         Parameters
         ----------
-        uuid: UUID, required
+        uuid : UUID, required
             The uuid of the requested stream.
-        collection: str, required
+        collection : str, required
             The collection string prefix that the stream will belong to.
-        tags: dict, required
+        tags : dict, required
             The tags-level metadata key:value pairs.
-        annotations: dict, optional
+        annotations : dict, optional
             The mutable metadata of the stream, key:value pairs
-        auto_retry: bool, default: False
+        auto_retry : bool, default: False
             Whether to retry this request in the event of an error
-        retries: int, default: 5
+        retries : int, default: 5
             Number of times to retry this request if there is an error. Will
             be ignored if auto_retry is False
-        retry_delay: int, default: 3
+        retry_delay : int, default: 3
             initial time to wait before retrying function call if there is an error.
             Will be ignored if auto_retry is False
-        retry_backoff: int, default: 4
+        retry_backoff : int, default: 4
             Exponential factor by which the backoff increases between retries.
             Will be ignored if auto_retry is False
 
@@ -506,7 +512,7 @@ class BTrDB(object):
         Returns
         -------
         dict
-            server connection and status information
+            Proxy server connection and status information
 
         """
         info = self.ep.info()
@@ -524,7 +530,7 @@ class BTrDB(object):
 
         Parameters
         ----------
-        starts_with: str, optional, default = ''
+        starts_with : str, optional, default: ''
             Filter collections that start with the string provided, if none passed, will list all collections.
 
         Returns
@@ -569,13 +575,13 @@ class BTrDB(object):
         Returns a list of annotation keys used in a given collection prefix.
 
         Parameters
-        -------
-        collection: str
+        ----------
+        collection : str
             Prefix of the collection to filter.
 
         Returns
         -------
-        annotations: list[str]
+        annotations : list[str]
 
         Notes
         -----
@@ -590,13 +596,13 @@ class BTrDB(object):
         Returns a list of names used in a given collection prefix.
 
         Parameters
-        -------
-        collection: str
+        ----------
+        collection : str
             Prefix of the collection to filter.
 
         Returns
         -------
-        names: list[str]
+        names : list[str]
         """
         return self._list_unique_tags_annotations("name", collection)
 
@@ -605,13 +611,13 @@ class BTrDB(object):
         Returns a list of units used in a given collection prefix.
 
         Parameters
-        -------
-        collection: str
+        ----------
+        collection : str
             Prefix of the collection to filter.
 
         Returns
         -------
-        units: list[str]
+        units : list[str]
         """
         return self._list_unique_tags_annotations("unit", collection)
 
@@ -634,23 +640,23 @@ class BTrDB(object):
 
         Parameters
         ----------
-        collection: str
+        collection : str
             collections to use when searching for streams, case sensitive.
-        is_collection_prefix: bool
+        is_collection_prefix : bool
             Whether the collection is a prefix.
-        tags: Dict[str, str]
+        tags : Dict[str, str]
             The tags to identify the stream.
-        annotations: Dict[str, str]
+        annotations : Dict[str, str]
             The annotations to identify the stream.
-        auto_retry: bool, default: False
+        auto_retry : bool, default: False
             Whether to retry this request in the event of an error
-        retries: int, default: 5
+        retries : int, default: 5
             Number of times to retry this request if there is an error. Will
             be ignored if auto_retry is False
-        retry_delay: int, default: 3
+        retry_delay : int, default: 3
             initial time to wait before retrying function call if there is an error.
             Will be ignored if auto_retry is False
-        retry_backoff: int, default: 4
+        retry_backoff : int, default: 4
             Exponential factor by which the backoff increases between retries.
             Will be ignored if auto_retry is False
 
@@ -659,9 +665,10 @@ class BTrDB(object):
         list[Stream]
             A list of ``Stream`` objects found with the provided search arguments.
 
-        Notes
-        -----
-        In a future release, the default return value of this function will be a ``StreamSet``
+
+        .. note::
+
+            In a future release, the default return value of this function will be a ``StreamSet``
 
         Examples
         --------
@@ -734,17 +741,17 @@ class BTrDB(object):
 
         Parameters
         ----------
-        prefix: str, required
+        prefix : str, required
             A prefix of the collection names to look at
-        auto_retry: bool, default: False
+        auto_retry : bool, default: False
             Whether to retry this request in the event of an error
-        retries: int, default: 5
+        retries : int, default: 5
             Number of times to retry this request if there is an error. Will
             be ignored if auto_retry is False
-        retry_delay: int, default: 3
+        retry_delay : int, default: 3
             initial time to wait before retrying function call if there is an error.
             Will be ignored if auto_retry is False
-        retry_backoff: int, default: 4
+        retry_backoff : int, default: 4
             Exponential factor by which the backoff increases between retries.
             Will be ignored if auto_retry is False
 

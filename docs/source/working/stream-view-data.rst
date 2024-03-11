@@ -155,32 +155,32 @@ across the end time then it will not be included in the results.
 
 .. code-block:: python
 
-    start = 1500000000000000000
-    end = 1500000001000000000
+    >>> start = 1500000000000000000
+    >>> end = 1500000001000000000
 
-    # view underlying data for comparison
-    for point, _ in stream.values(start=start, end=end):
-        print(point)
-RawPoint(1500000000000000000, 1.0),
-RawPoint(1500000000100000000, 2.0),
-RawPoint(1500000000200000000, 3.0),
-RawPoint(1500000000300000000, 4.0),
-RawPoint(1500000000400000000, 5.0),
-RawPoint(1500000000500000000, 6.0),
-RawPoint(1500000000600000000, 7.0),
-RawPoint(1500000000700000000, 8.0),
-RawPoint(1500000000800000000, 9.0),
-RawPoint(1500000000900000000, 10.0),
+    >>> # view underlying data for comparison
+    >>> for point, _ in stream.values(start=start, end=end):
+    >>>     print(point)
+    RawPoint(1500000000000000000, 1.0)
+    RawPoint(1500000000100000000, 2.0)
+    RawPoint(1500000000200000000, 3.0)
+    RawPoint(1500000000300000000, 4.0)
+    RawPoint(1500000000400000000, 5.0)
+    RawPoint(1500000000500000000, 6.0)
+    RawPoint(1500000000600000000, 7.0)
+    RawPoint(1500000000700000000, 8.0)
+    RawPoint(1500000000800000000, 9.0)
+    RawPoint(1500000000900000000, 10.0)
 
-    # each window spans 300 milliseconds
-    width = 300000000
+    >>> # each window spans 300 milliseconds
+    >>> width = 300000000
 
-    # request a precision of roughly 1 millisecond
-    depth = 20
+    >>> # request a precision of roughly 1 millisecond
+    >>> depth = 20
 
-    # view windowed data
-    for point, _ in stream.windows(start=start, end=end,
-                                   width=width, depth=depth):
-    >> StatPoint(1500000000000000000, 1.0, 2.0, 3.0, 3, 0.816496580927726)
-    >> StatPoint(1500000000300000000, 4.0, 5.0, 6.0, 3, 0.816496580927726)
-    >> StatPoint(1500000000600000000, 7.0, 8.0, 9.0, 3, 0.816496580927726)
+    >>> # view windowed data
+    >>> for point, _ in stream.windows(start=start, end=end,
+    ...                               width=width, depth=depth):
+     StatPoint(1500000000000000000, 1.0, 2.0, 3.0, 3, 0.816496580927726)
+     StatPoint(1500000000300000000, 4.0, 5.0, 6.0, 3, 0.816496580927726)
+     StatPoint(1500000000600000000, 7.0, 8.0, 9.0, 3, 0.816496580927726)
