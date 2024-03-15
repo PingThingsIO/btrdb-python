@@ -86,7 +86,7 @@ aggregate of all the raw data within a window of width 2^pointwidth
 nanoseconds.
 
 Note that :code:`start` is inclusive, but :code:`end` is exclusive. That is, results
-will be returned for all windows that start in the interval :code:`[start, end)`.
+will be returned for all windows that start in the interval :math:`[start, end)`.
 If end < start+2^pointwidth you will not get any results. If start and
 end are not powers of two, the bottom pointwidth bits will be cleared.
 Each window will contain statistical summaries of the window. Statistical points
