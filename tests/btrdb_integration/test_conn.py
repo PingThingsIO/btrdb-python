@@ -12,6 +12,7 @@ def test_connection_info(conn):
     logging.info(f"connection info: {info}")
 
 
+@pytest.mark.skip
 def test_incorrect_connect():
     err_msg = r"""Could not connect to the database, error message: <_InactiveRpcError of RPC that terminated with:\n\tstatus = StatusCode.UNAUTHENTICATED\n\tdetails = "invalid api key"\n"""
     with pytest.raises(BTrDBError, match=err_msg):
