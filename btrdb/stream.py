@@ -899,9 +899,9 @@ class Stream(object):
 
         .. note::
 
-        As ``BTrDB`` has persistent multiversioning, the
-        deleted points will still exist as part of an older version of the
-        stream.
+            As ``BTrDB`` has persistent multiversioning, the
+            deleted points will still exist as part of an older version of the
+            stream.
 
         Parameters
         ----------
@@ -1059,10 +1059,6 @@ class Stream(object):
             This method is available for commercial customers with arrow-enabled servers.
 
 
-        Examples
-        --------
-
-
         """
         if not self._btrdb._ARROW_ENABLED:
             raise NotImplementedError(_arrow_not_impl_str.format("arrow_values"))
@@ -1188,14 +1184,15 @@ class Stream(object):
         statistical aggregates currently include the mean, minimum, and maximum
         of the data and the count of data points composing the window.
 
+
         .. note::
 
-        ``start`` is inclusive, but ``end`` is exclusive. That is, results
-        will be returned for all windows that start in the interval [start, end).
-        If end < start+2^pointwidth you will not get any results. If start and
-        end are not powers of two, the bottom ``pointwidth`` bits will be cleared.
-        Each window will contain statistical summaries of the window.
-        Statistical points with count == 0 will be omitted.
+            ``start`` is inclusive, but ``end`` is exclusive. That is, results
+            will be returned for all windows that start in the interval [start, end).
+            If end < start+2^pointwidth you will not get any results. If start and
+            end are not powers of two, the bottom ``pointwidth`` bits will be cleared.
+            Each window will contain statistical summaries of the window.
+            Statistical points with ``count == 0`` will be omitted.
 
         Parameters
         ----------
@@ -1333,9 +1330,6 @@ class Stream(object):
             parameter previously available has been deprecated. The only valid value
             for ``depth`` is now ``0``.
 
-        .. note::
-
-            This method is available for commercial customers with arrow-enabled servers.
         """
         materialized = []
         start = to_nanoseconds(start)

@@ -89,6 +89,7 @@ def connect(conn_str=None, apikey=None, profile=None, shareable=False):
     <btrdb.conn.BTrDB at 0x...>
 
     If you provide incorrect credentials, you will get an error.
+
     >>> conn = btrdb.connect(conn_str="192.168.1.1:4411", apikey="NONSENSICAL_API_KEY")
 
 
