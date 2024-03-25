@@ -430,6 +430,16 @@ class BTrDB(object):
         Stream
             instance of Stream class or None
 
+        Examples
+        --------
+
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> uuid = "f98f4b4e-9fab-46b5-8a80-f282059d69b1"
+        >>> stream = conn.stream_from_uuid(uuid)
+        >>> stream
+        <Stream collection=foo/test name=test_stream>
+
         """
         return Stream(self, to_uuid(uuid))
 
@@ -514,6 +524,17 @@ class BTrDB(object):
         dict
             Proxy server connection and status information
 
+        Examples
+        --------
+        >>> conn = btrdb.connect()
+        >>> conn.info()
+        {
+        ..        'majorVersion': 5,
+        ..        'minorVersion': 8,
+        ..        'build': ...,
+        ..        'proxy': ...,
+        }
+
         """
         info = self.ep.info()
         return {
@@ -588,6 +609,12 @@ class BTrDB(object):
         This query treats the ``collection`` string as a prefix, so ``collection="foo"`` will match with the following wildcard syntax ``foo%``.
         If you only want to filter for a single collection, you will need to provide the full collection, if there are other collections
         that match the ``foo%`` pattern, you might need to use a custom SQL query using ``conn.query``.
+
+        Examples
+        --------
+        >>> conn.list_unique_annotations(collection="sunshine/PMU1")
+        ['foo', 'location', 'impedance']
+
         """
         return self._list_unique_tags_annotations("annotations", collection)
 
@@ -603,6 +630,21 @@ class BTrDB(object):
         Returns
         -------
         names : list[str]
+
+        Examples
+        --------
+        Can specify a full ``collection`` name.
+
+        >>> conn.list_unique_names(collection="sunshine/PMU1")
+        ['C1ANG', 'C1MAG', 'C2ANG', 'C2MAG', 'C3ANG', 'C3MAG', 'L1ANG', 'L1MAG', 'L2ANG', 'L2MAG', 'L3ANG', 'L3MAG', 'LSTATE']
+
+        And also provide a ``collection`` prefix.
+
+        >>> conn.list_unique_names(collection="sunshine/")
+        ['C1ANG', 'C1MAG', 'C2ANG', 'C2MAG', 'C3ANG', 'C3MAG', 'L1ANG', 'L1MAG', 'L2ANG', 'L2MAG', 'L3ANG', 'L3MAG', 'LSTATE']
+
+
+
         """
         return self._list_unique_tags_annotations("name", collection)
 
@@ -618,6 +660,14 @@ class BTrDB(object):
         Returns
         -------
         units : list[str]
+
+
+        Examples
+        --------
+
+        >>> conn.list_unique_units(collection="sunshine/PMU1")
+        ['amps', 'deg', 'mask', 'volts']
+
         """
         return self._list_unique_tags_annotations("unit", collection)
 
@@ -760,6 +810,16 @@ class BTrDB(object):
         tuple
             A tuple of dictionaries containing metadata on the streams in the
             provided collection.
+
+        Examples
+        --------
+        >>> conn.collection_metadata("sunshine/PMU1")
+        ({'name': 0, 'unit': 0, 'ingress': 0, 'distiller': 0},
+        .. {'foo': 1, 'impedance': 12, 'location': 12})
+
+        >>> conn.collection_metadata("sunshine/")
+        ({'name': 0, 'unit': 0, 'ingress': 0, 'distiller': 0},
+        .. {'foo': 1, 'impedance': 72, 'location': 72})
 
         """
         ep = self.ep

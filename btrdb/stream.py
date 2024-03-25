@@ -153,6 +153,18 @@ class Stream(object):
         -------
         bool
             Indicates whether stream is extant in the BTrDB server.
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream = conn.stream_from_uuid("...")
+        >>> stream.uuid
+        UUID('...')
+        >>> stream.exists()
+        True
+
+
         """
 
         if self._known_to_exist:
@@ -178,15 +190,7 @@ class Stream(object):
         Compute the total number of points in the stream
 
         Counts the number of points in the specified window and version. By
-        default, returns the latest total count of points in the stream. This
-        helper method sums the counts of all StatPoints returned by
-        ``aligned_windows``. Because of this, note that the start and end
-        timestamps may be adjusted if they are not powers of 2. For smaller
-        windows of time, you may also need to adjust the ``pointwidth`` to ensure
-        that the count granularity is captured appropriately.
-
-        Alternatively you can set the ``precise`` argument to ``True`` which will
-        give an exact count to the nanosecond but may be slower to execute.
+        default, returns the latest total count of points in the stream.
 
         Parameters
         ----------
@@ -215,6 +219,32 @@ class Stream(object):
         -------
         int
             The total number of points in the stream for the specified window.
+
+
+        .. note::
+
+            This helper method sums the counts of all StatPoints returned by
+            ``aligned_windows``. Because of this, note that the start and end
+            timestamps may be adjusted if they are not powers of 2. For smaller
+            windows of time, you may also need to adjust the ``pointwidth`` to ensure
+            that the count granularity is captured appropriately.
+
+            Alternatively you can set the ``precise`` argument to ``True`` which will
+            give an exact count to the nanosecond but may be slower to execute.
+
+
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream = conn.stream_from_uuid("...")
+        >>> stream.count()
+        1234
+        >>> stream.count(start=1500000000000000000, end=1603680000000000000, pointwidth=55)
+        567
+        >>> stream.count(start=1500000000000000000, end=1603680000000000000, precise=True)
+        789
         """
 
         if not precise:
@@ -233,16 +263,26 @@ class Stream(object):
     @property
     def btrdb(self):
         """
-        Returns the stream's BTrDB object.
+         Returns the stream's BTrDB object.
 
-        Parameters
-        ----------
-        None
+         Parameters
+         ----------
+         None
 
-        Returns
-        -------
-        BTrDB
-            The BTrDB database object.
+         Returns
+         -------
+         BTrDB
+             The BTrDB database object.
+
+         Examples
+         --------
+
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream = conn.stream_from_uuid("...")
+        >>> btrdb_obj = stream.btrdb
+        >>> btrdb_obj
+        <btrdb.conn.BTrDB object at 0x...>
 
         """
         return self._btrdb
@@ -278,6 +318,14 @@ class Stream(object):
         str
             The name of the stream.
 
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream = conn.stream_from_uuid("...")
+        >>> stream.name
+        'foo'
+
         """
         return self.tags()["name"]
 
@@ -292,6 +340,14 @@ class Stream(object):
         -------
         str
             The unit for values of the stream.
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream = conn.stream_from_uuid("...")
+        >>> stream.unit
+        'volts'
 
         """
         return self.tags()["unit"]
@@ -310,6 +366,14 @@ class Stream(object):
         -------
         str
             the collection of the stream
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream = conn.stream_from_uuid("...")
+        >>> stream.collection
+        'foo/bar'
 
         """
         if self._collection is not None:
@@ -637,6 +701,18 @@ class Stream(object):
         -------
         int
             The version of the stream after inserting new points.
+
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream = conn.stream_from_uuid("...")
+        >>> data = [(1500000000000000000, 1.0), (1500000000100000000, 2.0)]
+        >>> stream.insert(data)
+        1234
+        >>> stream.insert(data, merge="replace")
+        1235
         """
         version = 0
         i = 0
@@ -810,12 +886,8 @@ class Stream(object):
         None, they will remain unchanged in the database.
 
         To delete either tags or annotations, you must specify exactly which
-        keys and values you want set for the field and set ``replace=True``. For
-        example:
+        keys and values you want set for the field and set ``replace=True``.
 
-            >>> annotations, _ = stream.anotations()
-            >>> del annotations["key_to_delete"]
-            >>> stream.update(annotations=annotations, replace=True)
 
         This ensures that all the keys and values for the annotations are
         preserved except for the key to be deleted.
@@ -856,6 +928,18 @@ class Stream(object):
         int
             The version of the metadata (separate from the version of the data)
             also known as the "property version".
+
+
+        Examples
+        --------
+        >>> annotations, _ = stream.anotations()
+        >>> del annotations["key_to_delete"]
+        >>> stream.update(annotations=annotations, replace=True)
+        12345
+        >>> annotations, _ = stream.annotations()
+        >>> "key_to_delete" in annotations
+        False
+
         """
         if tags is None and annotations is None and collection is None:
             raise BTRDBValueError(
@@ -927,6 +1011,19 @@ class Stream(object):
         -------
         int
             The version of the new stream created
+
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream = conn.stream_from_uuid("...")
+        >>> start = 1500000000000000000
+        >>> end = 1500000001000000000
+        >>> stream.delete(start, end)
+        1234
+        >>> stream.count(start=start, end=end)
+        0
         """
         return self._btrdb.ep.deleteRange(
             self._uuid, to_nanoseconds(start), to_nanoseconds(end)
@@ -1686,10 +1783,6 @@ class StreamSetBase(Sequence):
         all points in the streams. The count is modified by start and end
         filters or by pinning versions.
 
-        Note that this helper method sums the counts of all StatPoints returned
-        by ``aligned_windows``. Because of this the start and end timestamps
-        may be adjusted if they are not powers of 2.
-
         Parameters
         ----------
         precise : bool, default = False
@@ -1699,6 +1792,27 @@ class StreamSetBase(Sequence):
         -------
         int
             The total number of points in all streams for the specified filters.
+
+        .. note::
+
+            Note that this helper method sums the counts of all StatPoints returned
+            by ``aligned_windows``. Because of this the start and end timestamps
+            may be adjusted if they are not powers of 2.
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream1 = conn.stream_from_uuid("...")
+        >>> stream2 = conn.stream_from_uuid("...")
+        >>> streamset = btrdb.stream.StreamSet([stream1, stream2])
+        >>> streamset.count()
+        2345
+        >>> filtered_streamset = streamset.filter(start=1500000000000000000, end=1500000001000000000)
+        >>> filtered_streamset.count(precise=True)
+        734
+        >>> streamset.filter(start=1500000000000000000, end=1500000001000000000).count(precise=True)
+        734
         """
         params = self._params_from_filters()
         start = params.get("start", MINIMUM_TIME)
@@ -1730,6 +1844,15 @@ class StreamSetBase(Sequence):
         tuple
             The earliest points of data found among all streams
 
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream1 = conn.stream_from_uuid("...")
+        >>> stream2 = conn.stream_from_uuid("...")
+        >>> streamset = btrdb.stream.StreamSet([stream1, stream2])
+        >>> streamset.earliest()
+        (<RawPoint ...>, <RawPoint ...>)
         """
         earliest = []
         params = self._params_from_filters()
@@ -1762,6 +1885,15 @@ class StreamSetBase(Sequence):
         tuple
             The latest points of data found among all streams
 
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream1 = conn.stream_from_uuid("...")
+        >>> stream2 = conn.stream_from_uuid("...")
+        >>> streamset = btrdb.stream.StreamSet([stream1, stream2])
+        >>> streamset.earliest()
+        (<RawPoint ...>, <RawPoint ...>)
         """
         latest = []
         params = self._params_from_filters()
@@ -1789,6 +1921,16 @@ class StreamSetBase(Sequence):
         -------
         tuple
             The latest points of data found among all streams
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream1 = conn.stream_from_uuid("...")
+        >>> stream2 = conn.stream_from_uuid("...")
+        >>> streamset = btrdb.stream.StreamSet([stream1, stream2])
+        >>> streamset.current()
+        (<RawPoint ...>, <RawPoint ...>)
         """
         latest = []
         params = self._params_from_filters()
@@ -1802,12 +1944,15 @@ class StreamSetBase(Sequence):
             )
 
         versions = self.versions()
-        latest_points_gen = self._btrdb._executor.map(
+        current_points_gen = self._btrdb._executor.map(
             lambda s: (s.nearest(now, version=versions.get(s.uuid, 0), backward=True)),
             self._streams,
         )
-        for point in latest_points_gen:
-            latest.append(point)
+        for point in current_points_gen:
+            if point is not None:
+                latest.append(point[0])
+            else:
+                latest.append(None)
 
         return tuple(latest)
 
@@ -1875,6 +2020,30 @@ class StreamSetBase(Sequence):
             grid of timestamps based on the period of the sampling frequency. For example, a sampling rate of 30hz will
             have a sampling period of 1/30hz -> ~33_333_333 ns per sample. Leave ``sampling_frequency`` as ``None``, or set to ``0`` to
             prevent time alignment. You should **not** use aligned data for frequency-based analysis.
+
+
+        Examples
+        --------
+        create a streamset and apply a few filters
+
+        >>> streamset = btrdb.stream.StreamSet(list_of_streams)
+        >>> print(f"Total streams: {len(streamset)}")
+        Total streams: 89
+
+        >>> streamset.filter(units="Volts")
+        >>> print(f"Total streams: {len(streamset)}")
+        Total streams: 89
+
+        >>> filtered_streamset = streamset.filter(units="Volts")
+        >>> print(f"Total streams: {len(filtered_streamset)}")
+        Total streams: 23
+
+        >>> multiple_filters_streamset = (streamset.filter(unit="Volts")
+        >>>                                 .filter(name="Sensor 1")
+        >>>                                 .filter(annotations={"phase":"A"})
+        >>>                              )
+        >>> print(f"Total streams: {len(multiple_filters_streamset)}")
+        Total streams: 1
         """
 
         obj = self.clone()
@@ -2014,6 +2183,21 @@ class StreamSetBase(Sequence):
             + width * floordiv(end - start, width)).  The ``depth`` parameter previously
             available has been deprecated. The only valid value for ``depth`` is now ``0``.
 
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream1 = conn.stream_from_uuid("...")
+        >>> stream2 = conn.stream_from_uuid("...")
+        >>> streamset = btrdb.stream.StreamSet([stream1, stream2])
+        >>> streamset.windows(width=1000000000)
+        <StreamSet ...>
+        >>> streamset.windows(width=1000000000, depth=0)
+        <StreamSet ...>
+        >>> streamset.aligned_windows(pointwidth=30)
+        Traceback (most recent call last):
+          ...
+        btrdb.exceptions.InvalidOperation: A window operation is already requested
         """
         if not self.allow_window:
             raise InvalidOperation("A window operation is already requested")
@@ -2055,6 +2239,19 @@ class StreamSetBase(Sequence):
             summaries of the window. Statistical points with ``count`` == 0 will be
             omitted.
 
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream1 = conn.stream_from_uuid("...")
+        >>> stream2 = conn.stream_from_uuid("...")
+        >>> streamset = btrdb.stream.StreamSet([stream1, stream2])
+        >>> streamset.aligned_windows(pointwidth=30)
+        <StreamSet ...>
+        >>> streamset.windows(width=1000000000)
+        Traceback (most recent call last):
+          ...
+        btrdb.exceptions.InvalidOperation: A window operation is already requested
         """
         if not self.allow_window:
             raise InvalidOperation("A window operation is already requested")
@@ -2131,6 +2328,20 @@ class StreamSetBase(Sequence):
             A list of tuples containing a RawPoint (or StatPoint) and the stream
             version (list(tuple(RawPoint, int))).
 
+        Examples
+        --------
+        >>> for row in streams.rows():
+        >>>    print(row)
+        (None, RawPoint(1500000000000000000, 1.0), RawPoint(1500000000000000000, 1.0), RawPoint(1500000000000000000, 1.0))
+        (RawPoint(1500000000100000000, 2.0), None, RawPoint(1500000000100000000, 2.0), RawPoint(1500000000100000000, 2.0))
+        (None, RawPoint(1500000000200000000, 3.0), None, RawPoint(1500000000200000000, 3.0))
+        (RawPoint(1500000000300000000, 4.0), None, RawPoint(1500000000300000000, 4.0), RawPoint(1500000000300000000, 4.0))
+        (None, RawPoint(1500000000400000000, 5.0), RawPoint(1500000000400000000, 5.0), RawPoint(1500000000400000000, 5.0))
+        (RawPoint(1500000000500000000, 6.0), None, None, RawPoint(1500000000500000000, 6.0))
+        (None, RawPoint(1500000000600000000, 7.0), RawPoint(1500000000600000000, 7.0), RawPoint(1500000000600000000, 7.0))
+        (RawPoint(1500000000700000000, 8.0), None, RawPoint(1500000000700000000, 8.0), RawPoint(1500000000700000000, 8.0))
+        (None, RawPoint(1500000000800000000, 9.0), RawPoint(1500000000800000000, 9.0), RawPoint(1500000000800000000, 9.0))
+        (RawPoint(1500000000900000000, 10.0), None, RawPoint(1500000000900000000, 10.0), RawPoint(1500000000900000000, 10.0))
         """
         result = []
         streamset_data = self._streamset_data(as_iterators=True)
@@ -2190,6 +2401,24 @@ class StreamSetBase(Sequence):
         .. note::
 
             You MUST convert your datetimes into UTC+0 **yourself**. BTrDB expects UTC+0 datetimes.
+
+
+        Examples
+        --------
+        >>> import pandas as pd
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream1 = conn.stream_from_uuid("...")
+        >>> stream2 = conn.stream_from_uuid("...")
+        >>> streamset = btrdb.stream.StreamSet([stream1, stream2])
+        >>> data_map = {
+        ...     stream1.uuid: pd.DataFrame({'time': [1500000000000000000, 1500000000100000000], 'value': [1.0, 2.0]}),
+        ...     stream2.uuid: pd.DataFrame({'time': [1500000000000000000, 1500000000100000000], 'value': [3.0, 4.0]})
+        ... }
+        >>> streamset.insert(data_map)
+        {UUID('...'): 1234, UUID('...'): 5678}
+        >>> streamset.insert(data_map, merge='replace')
+        {UUID('...'): 1235, UUID('...'): 5679}
         """
         filtered_data_map = {s.uuid: data_map[s.uuid] for s in self._streams}
         for key, dat in filtered_data_map.items():
