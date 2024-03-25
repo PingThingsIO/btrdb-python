@@ -16,7 +16,7 @@ Testing package for the btrdb connection module
 ##########################################################################
 
 import uuid as uuidlib
-from unittest.mock import Mock, PropertyMock, call, patch
+from unittest.mock import MagicMock, Mock, PropertyMock, call, patch
 
 import pytest
 
@@ -41,7 +41,7 @@ def stream1():
     type(stream).name = PropertyMock(return_value="gala")
     stream.tags = Mock(return_value={"name": "gala", "unit": "volts"})
     stream.annotations = Mock(return_value=({"owner": "ABC", "color": "red"}, 11))
-    stream._btrdb = Mock()
+    stream._btrdb = MagicMock()
     return stream
 
 
@@ -55,7 +55,7 @@ def stream2():
     type(stream).name = PropertyMock(return_value="blood")
     stream.tags = Mock(return_value={"name": "blood", "unit": "amps"})
     stream.annotations = Mock(return_value=({"owner": "ABC", "color": "orange"}, 22))
-    stream._btrdb = Mock()
+    stream._btrdb = MagicMock()
     return stream
 
 
@@ -69,7 +69,7 @@ def stream3():
     type(stream).name = PropertyMock(return_value="yellow")
     stream.tags = Mock(return_value={"name": "yellow", "unit": "watts"})
     stream.annotations = Mock(return_value=({"owner": "ABC", "color": "yellow"}, 33))
-    stream._btrdb = Mock()
+    stream._btrdb = MagicMock()
     return stream
 
 
@@ -105,105 +105,113 @@ class TestBTrDB(object):
         """
         Assert streams raises TypeError if versions is not list
         """
-        db = BTrDB(None)
-        with pytest.raises(TypeError) as exc:
-            db.streams("0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a", versions="2,2")
+        with patch("btrdb.endpoint.Endpoint", return_value=MagicMock()) as ep:
+            db = BTrDB(ep)
+            with pytest.raises(TypeError) as exc:
+                db.streams("0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a", versions="2,2")
 
-        assert "versions argument must be of type list" in str(exc)
+            assert "versions argument must be of type list" in str(exc)
 
     def test_streams_raises_err_if_version_argument_mismatch(self):
         """
         Assert streams raises ValueError if len(identifiers) doesnt match length of versions
         """
-        db = BTrDB(None)
-        with pytest.raises(ValueError) as exc:
-            db.streams("0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a", versions=[2, 2])
+        with patch("btrdb.endpoint.Endpoint", return_value=MagicMock()) as ep:
+            db = BTrDB(ep)
+            with pytest.raises(ValueError) as exc:
+                db.streams("0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a", versions=[2, 2])
 
-        assert "versions does not match identifiers" in str(exc)
+            assert "versions does not match identifiers" in str(exc)
 
     def test_streams_stores_versions(self):
         """
         Assert streams correctly stores supplied version info
         """
-        db = BTrDB(None)
-        uuid1 = uuidlib.UUID("0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a")
-        uuid2 = uuidlib.UUID("17dbe387-89ea-42b6-864b-f505cdb483f5")
-        versions = [22, 44]
-        expected = dict(zip([uuid1, uuid2], versions))
+        with patch("btrdb.endpoint.Endpoint", return_value=MagicMock()) as ep:
+            db = BTrDB(ep)
+            uuid1 = uuidlib.UUID("0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a")
+            uuid2 = uuidlib.UUID("17dbe387-89ea-42b6-864b-f505cdb483f5")
+            versions = [22, 44]
+            expected = dict(zip([uuid1, uuid2], versions))
 
-        streams = db.streams(uuid1, uuid2, versions=versions)
-        assert streams._pinned_versions == expected
+            streams = db.streams(uuid1, uuid2, versions=versions)
+            assert streams._pinned_versions == expected
 
     @patch("btrdb.conn.BTrDB.stream_from_uuid")
     def test_streams_recognizes_uuid(self, mock_func):
         """
         Assert streams recognizes uuid strings
         """
-        db = BTrDB(None)
-        uuid1 = uuidlib.UUID("0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a")
-        mock_func.return_value = Stream(db, uuid1)
-        db.streams(uuid1)
+        with patch("btrdb.endpoint.Endpoint", return_value=MagicMock()) as ep:
+            db = BTrDB(ep)
+            uuid1 = uuidlib.UUID("0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a")
+            mock_func.return_value = Stream(db, uuid1)
+            db.streams(uuid1)
 
-        mock_func.assert_called_once()
-        assert mock_func.call_args[0][0] == uuid1
+            mock_func.assert_called_once()
+            assert mock_func.call_args[0][0] == uuid1
 
     @patch("btrdb.conn.BTrDB.stream_from_uuid")
     def test_streams_recognizes_uuid_string(self, mock_func):
         """
         Assert streams recognizes uuid strings
         """
-        db = BTrDB(None)
-        uuid1 = "0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a"
-        mock_func.return_value = Stream(db, uuid1)
-        db.streams(uuid1)
+        with patch("btrdb.endpoint.Endpoint", return_value=MagicMock()) as ep:
+            db = BTrDB(ep)
+            uuid1 = "0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a"
+            mock_func.return_value = Stream(db, uuid1)
+            db.streams(uuid1)
 
-        mock_func.assert_called_once()
-        assert mock_func.call_args[0][0] == uuid1
+            mock_func.assert_called_once()
+            assert mock_func.call_args[0][0] == uuid1
 
     @patch("btrdb.conn.BTrDB.streams_in_collection")
     def test_streams_handles_path(self, mock_func):
         """
         Assert streams calls streams_in_collection for collection/name paths
         """
-        db = BTrDB(None)
-        ident = "zoo/animal/dog"
-        mock_func.return_value = [
-            Stream(db, "0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a"),
-        ]
-        db.streams(ident, "0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a")
+        with patch("btrdb.endpoint.Endpoint", return_value=MagicMock()) as ep:
+            db = BTrDB(ep)
+            ident = "zoo/animal/dog"
+            mock_func.return_value = [
+                Stream(db, "0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a"),
+            ]
+            db.streams(ident, "0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a")
 
-        mock_func.assert_called_once()
-        assert mock_func.call_args[0][0] == "zoo/animal"
-        assert mock_func.call_args[1] == {
-            "is_collection_prefix": False,
-            "tags": {"name": "dog"},
-        }
+            mock_func.assert_called_once()
+            assert mock_func.call_args[0][0] == "zoo/animal"
+            assert mock_func.call_args[1] == {
+                "is_collection_prefix": False,
+                "tags": {"name": "dog"},
+            }
 
     @patch("btrdb.conn.BTrDB.streams_in_collection")
     def test_streams_raises_err(self, mock_func):
         """
         Assert streams raises StreamNotFoundError
         """
-        db = BTrDB(None)
-        ident = "zoo/animal/dog"
+        with patch("btrdb.endpoint.Endpoint", return_value=MagicMock()) as ep:
+            db = BTrDB(ep)
+            ident = "zoo/animal/dog"
 
-        mock_func.return_value = []
-        with pytest.raises(StreamNotFoundError) as exc:
+            mock_func.return_value = []
+            with pytest.raises(StreamNotFoundError) as exc:
+                db.streams(ident)
+
+            # check that does not raise if one returned
+            mock_func.return_value = [
+                Stream(db, ident),
+            ]
             db.streams(ident)
-
-        # check that does not raise if one returned
-        mock_func.return_value = [
-            Stream(db, ident),
-        ]
-        db.streams(ident)
 
     def test_streams_raises_valueerror(self):
         """
         Assert streams raises ValueError if not uuid, uuid str, or path
         """
-        db = BTrDB(None)
-        with pytest.raises(ValueError) as exc:
-            db.streams(11)
+        with patch("btrdb.endpoint.Endpoint", return_value=MagicMock()) as ep:
+            db = BTrDB(ep)
+            with pytest.raises(ValueError) as exc:
+                db.streams(11)
 
     ##########################################################################
     ## other tests

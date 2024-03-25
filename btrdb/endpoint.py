@@ -38,7 +38,7 @@ try:
 except ImportError:
     pa = None
 
-_ARROW_IMPORT_MSG = """Package pyarrow required, please pip install."""
+_ARROW_IMPORT_MSG = """Package `pyarrow` required, please pip install."""
 
 
 class Endpoint(object):

@@ -153,6 +153,18 @@ class Stream(object):
         -------
         bool
             Indicates whether stream is extant in the BTrDB server.
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream = conn.stream_from_uuid("...")
+        >>> stream.uuid
+        UUID('...')
+        >>> stream.exists()
+        True
+
+
         """
 
         if self._known_to_exist:
@@ -178,15 +190,7 @@ class Stream(object):
         Compute the total number of points in the stream
 
         Counts the number of points in the specified window and version. By
-        default returns the latest total count of points in the stream. This
-        helper method sums the counts of all StatPoints returned by
-        ``aligned_windows``. Because of this, note that the start and end
-        timestamps may be adjusted if they are not powers of 2. For smaller
-        windows of time, you may also need to adjust the pointwidth to ensure
-        that the count granularity is captured appropriately.
-
-        Alternatively you can set the precise argument to True which will
-        give an exact count to the nanosecond but may be slower to execute.
+        default, returns the latest total count of points in the stream.
 
         Parameters
         ----------
@@ -215,6 +219,32 @@ class Stream(object):
         -------
         int
             The total number of points in the stream for the specified window.
+
+
+        .. note::
+
+            This helper method sums the counts of all StatPoints returned by
+            ``aligned_windows``. Because of this, note that the start and end
+            timestamps may be adjusted if they are not powers of 2. For smaller
+            windows of time, you may also need to adjust the ``pointwidth`` to ensure
+            that the count granularity is captured appropriately.
+
+            Alternatively you can set the ``precise`` argument to ``True`` which will
+            give an exact count to the nanosecond but may be slower to execute.
+
+
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream = conn.stream_from_uuid("...")
+        >>> stream.count()
+        1234
+        >>> stream.count(start=1500000000000000000, end=1603680000000000000, pointwidth=55)
+        567
+        >>> stream.count(start=1500000000000000000, end=1603680000000000000, precise=True)
+        789
         """
 
         if not precise:
@@ -233,16 +263,26 @@ class Stream(object):
     @property
     def btrdb(self):
         """
-        Returns the stream's BTrDB object.
+         Returns the stream's BTrDB object.
 
-        Parameters
-        ----------
-        None
+         Parameters
+         ----------
+         None
 
-        Returns
-        -------
-        BTrDB
-            The BTrDB database object.
+         Returns
+         -------
+         BTrDB
+             The BTrDB database object.
+
+         Examples
+         --------
+
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream = conn.stream_from_uuid("...")
+        >>> btrdb_obj = stream.btrdb
+        >>> btrdb_obj
+        <btrdb.conn.BTrDB object at 0x...>
 
         """
         return self._btrdb
@@ -278,6 +318,14 @@ class Stream(object):
         str
             The name of the stream.
 
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream = conn.stream_from_uuid("...")
+        >>> stream.name
+        'foo'
+
         """
         return self.tags()["name"]
 
@@ -292,6 +340,14 @@ class Stream(object):
         -------
         str
             The unit for values of the stream.
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream = conn.stream_from_uuid("...")
+        >>> stream.unit
+        'volts'
 
         """
         return self.tags()["unit"]
@@ -310,6 +366,14 @@ class Stream(object):
         -------
         str
             the collection of the stream
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream = conn.stream_from_uuid("...")
+        >>> stream.collection
+        'foo/bar'
 
         """
         if self._collection is not None:
@@ -354,6 +418,20 @@ class Stream(object):
             The first data point in the stream and the version of the stream
             the value was retrieved at (tuple(RawPoint, int)).
 
+
+        Examples
+        --------
+        Get the earliest point for a stream using ``version`` ``0``.
+
+        >>> stream.earliest(version=0)
+        (<btrdb.point.RawPoint at 0x...>, 1234567)
+
+        Extract just the ``RawPoint`` data.
+
+        >>> pt, _ = stream.earliest(version=0)
+        >>> print(pt.time, pt.value)
+        1547241923338098176 123.7
+
         """
         start = MINIMUM_TIME
         return self.nearest(start, version=version, backward=False)
@@ -394,6 +472,18 @@ class Stream(object):
             The last data point in the stream and the version of the stream
             the value was retrieved at (tuple(RawPoint, int)).
 
+        Examples
+        --------
+        Get the latest point for a stream using ``version`` ``0``.
+
+        >>> stream.latest(version=0)
+        (<btrdb.point.RawPoint at 0x...>, 1234567)
+
+        Extract just the ``RawPoint`` data.
+
+        >>> pt, _ = stream.latest(version=0)
+        >>> print(pt.time, pt.value)
+        1547241923338098176 123.7
         """
         start = MAXIMUM_TIME
         return self.nearest(start, version=version, backward=True)
@@ -410,7 +500,7 @@ class Stream(object):
         """
         Returns the point that is closest to the current timestamp, e.g. the latest
         point in the stream up until now. Note that no future values will be returned.
-        Returns None if errors during lookup or there are no values before now.
+        Returns None if errors occur during lookup or there are no values before now.
 
         Parameters
         ----------
@@ -521,6 +611,25 @@ class Stream(object):
             A tuple containing a dictionary of annotations and an integer representing
             the version of the metadata (tuple(dict, int)).
 
+
+        .. note::
+
+            This ``version`` is not the same as the ``stream.version``.
+
+        Examples
+        --------
+        Accessing a streams annotations.
+
+        >>> stream.annotations()
+        ({"foo":"bar", "baz":"bazaar"}, 231)
+
+        Extract the version and metadata separately.
+
+        >>> annotations, metadata_version = stream.annotations()
+        >>> annotations
+        {"foo":"bar", "baz":"bazaar"}
+        >>> metadata_version
+        231
         """
         if refresh or self._annotations is None:
             self.refresh_metadata()
@@ -538,9 +647,11 @@ class Stream(object):
         """
         Returns the current data version of the stream.
 
-        Version returns the current data version of the stream. This is not
-        cached, it queries each time. Take care that you do not intorduce races
-        in your code by assuming this function will always return the same vaue
+        .. warning::
+
+            Version returns the current data version of the stream. This is not
+            cached, it queries each time. Take care that you do not introduce races
+            in your code by assuming this function will always return the same value.
 
         Parameters
         ----------
@@ -590,6 +701,18 @@ class Stream(object):
         -------
         int
             The version of the stream after inserting new points.
+
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream = conn.stream_from_uuid("...")
+        >>> data = [(1500000000000000000, 1.0), (1500000000100000000, 2.0)]
+        >>> stream.insert(data)
+        1234
+        >>> stream.insert(data, merge="replace")
+        1235
         """
         version = 0
         i = 0
@@ -626,9 +749,39 @@ class Stream(object):
         int
             The version of the stream after inserting new points.
 
-        Notes
-        -----
-        This method is available for commercial customers with arrow-enabled servers.
+
+        .. note::
+
+            This method is available for commercial customers with arrow-enabled servers.
+
+        Examples
+        --------
+        Assuming we have a sequence of ``times`` and ``values`` where ``times`` are in nanoseconds.
+        Insert the data as a pyarrow table, and if there are duplicate timestamps already in the database,
+        replace with the new ones in ``payload``.
+
+        >>> conn = btrdb.connect()
+        >>> import pyarrow as pa
+        >>> for t, v in zip(times, vals):
+        ...     print(t,v)
+        1500000000000000000 1.0
+        1500000000100000000 2.0
+        1500000000200000000 3.0
+        1500000000300000000 4.0
+        1500000000400000000 5.0
+        1500000000500000000 6.0
+        1500000000600000000 7.0
+        1500000000700000000 8.0
+        1500000000800000000 9.0
+        1500000000900000000 10.0
+        >>> schema = pa.schema(
+        ... [
+        ...    pa.field("time", pa.timestamp("ns", tz="UTC"), nullable=False),
+        ...    pa.field("value", pa.float64(), nullable=False),
+        ... ]
+        ... )
+        >>> payload = pa.Table.from_arrays([times, vals], schema=schema)
+        >>> version = stream.arrow_insert(payload, merge="replace")
         """
         if not self._btrdb._ARROW_ENABLED:
             raise NotImplementedError(_arrow_not_impl_str.format("arrow_insert"))
@@ -667,6 +820,9 @@ class Stream(object):
         return max(version)
 
     def _update_tags_collection(self, tags, collection):
+        """
+        :meta private:
+        """
         tags = self.tags() if tags is None else tags
         collection = self.collection if collection is None else collection
         if collection is None:
@@ -682,6 +838,9 @@ class Stream(object):
         )
 
     def _update_annotations(self, annotations, encoder, replace):
+        """
+        :meta private:
+        """
         # make a copy of the annotations to prevent accidental mutable object mutation
         serialized = deepcopy(annotations)
         if encoder is not None:
@@ -727,14 +886,10 @@ class Stream(object):
         None, they will remain unchanged in the database.
 
         To delete either tags or annotations, you must specify exactly which
-        keys and values you want set for the field and set `replace=True`. For
-        example:
+        keys and values you want set for the field and set ``replace=True``.
 
-            >>> annotations, _ = stream.anotations()
-            >>> del annotations["key_to_delete"]
-            >>> stream.update(annotations=annotations, replace=True)
 
-        This ensures that all of the keys and values for the annotations are
+        This ensures that all the keys and values for the annotations are
         preserved except for the key to be deleted.
 
         Parameters
@@ -750,11 +905,11 @@ class Stream(object):
             Specify a new collection for the stream. If None, the collection
             will remain unchanged.
         encoder : json.JSONEncoder or None
-            JSON encoder class to use for annotation serialization. Set to None
+            JSON encoder class to use for annotation serialization. Set to ``None``
             to prevent JSON encoding of the annotations.
         replace : bool, default: False
             Replace all annotations or tags with the specified dictionaries
-            instead of performing the normal upsert operation. Specifying True
+            instead of performing the normal upsert operation. Specifying ``True``
             is the only way to remove annotation keys.
         auto_retry: bool, default: False
             Whether to retry this request in the event of an error
@@ -773,6 +928,18 @@ class Stream(object):
         int
             The version of the metadata (separate from the version of the data)
             also known as the "property version".
+
+
+        Examples
+        --------
+        >>> annotations, _ = stream.anotations()
+        >>> del annotations["key_to_delete"]
+        >>> stream.update(annotations=annotations, replace=True)
+        12345
+        >>> annotations, _ = stream.annotations()
+        >>> "key_to_delete" in annotations
+        False
+
         """
         if tags is None and annotations is None and collection is None:
             raise BTRDBValueError(
@@ -809,21 +976,25 @@ class Stream(object):
         retry_backoff=4,
     ):
         """
-        "Delete" all points between [`start`, `end`)
+        "Delete" all points between [``start``, ``end``)
 
-        "Delete" all points between `start` (inclusive) and `end` (exclusive),
-        both in nanoseconds. As BTrDB has persistent multiversioning, the
-        deleted points will still exist as part of an older version of the
-        stream.
+        "Delete" all points between ``start`` (inclusive) and ``end`` (exclusive),
+        both in nanoseconds.
+
+        .. note::
+
+            As ``BTrDB`` has persistent multiversioning, the
+            deleted points will still exist as part of an older version of the
+            stream.
 
         Parameters
         ----------
         start : int or datetime like object
             The start time in nanoseconds for the range to be deleted. (see
-            :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
+            :func:``btrdb.utils.timez.to_nanoseconds`` for valid input types)
         end : int or datetime like object
             The end time in nanoseconds for the range to be deleted. (see
-            :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
+            :func:``btrdb.utils.timez.to_nanoseconds`` for valid input types)
         auto_retry: bool, default: False
             Whether to retry this request in the event of an error
         retries: int, default: 5
@@ -840,6 +1011,19 @@ class Stream(object):
         -------
         int
             The version of the new stream created
+
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream = conn.stream_from_uuid("...")
+        >>> start = 1500000000000000000
+        >>> end = 1500000001000000000
+        >>> stream.delete(start, end)
+        1234
+        >>> stream.count(start=start, end=end)
+        0
         """
         return self._btrdb.ep.deleteRange(
             self._uuid, to_nanoseconds(start), to_nanoseconds(end)
@@ -892,13 +1076,13 @@ class Stream(object):
             version (list(tuple(RawPoint,int))).
 
 
-        Notes
-        -----
-        Note that the raw data points are the original values at the sensor's
-        native sampling rate (assuming the time series represents measurements
-        from a sensor). This is the lowest level of data with the finest time
-        granularity. In the tree data structure of BTrDB, this data is stored in
-        the vector nodes.
+        .. note::
+
+            Note that the raw data points are the original values at the sensor's
+            native sampling rate (assuming the time series represents measurements
+            from a sensor). This is the lowest level of data with the finest time
+            granularity. In the tree data structure of BTrDB, this data is stored in
+            the vector nodes.
 
         """
         materialized = []
@@ -958,15 +1142,20 @@ class Stream(object):
             A pyarrow table of the raw values with time and value columns.
 
 
-        Notes
-        -----
-        Note that the raw data points are the original values at the sensor's
-        native sampling rate (assuming the time series represents measurements
-        from a sensor). This is the lowest level of data with the finest time
-        granularity. In the tree data structure of BTrDB, this data is stored in
-        the vector nodes.
+        .. note::
 
-        This method is available for commercial customers with arrow-enabled servers.
+            Note that the raw data points are the original values at the sensor's
+            native sampling rate (assuming the time series represents measurements
+            from a sensor). This is the lowest level of data with the finest time
+            granularity. In the tree data structure of BTrDB, this data is stored in
+            the vector nodes.
+
+
+        .. note::
+
+            This method is available for commercial customers with arrow-enabled servers.
+
+
         """
         if not self._btrdb._ARROW_ENABLED:
             raise NotImplementedError(_arrow_not_impl_str.format("arrow_values"))
@@ -1007,16 +1196,18 @@ class Stream(object):
         Read statistical aggregates of windows of data from BTrDB.
 
         Query BTrDB for aggregates (or roll ups or windows) of the time series
-        with `version` between time `start` (inclusive) and `end` (exclusive) in
+        with `version` between time ``start`` (inclusive) and ``end`` (exclusive) in
         nanoseconds. Each point returned is a statistical aggregate of all the
-        raw data within a window of width 2**`pointwidth` nanoseconds. These
+        raw data within a window of width ``2**pointwidth`` nanoseconds. These
         statistical aggregates currently include the mean, minimum, and maximum
         of the data and the count of data points composing the window.
 
-        Note that `start` is inclusive, but `end` is exclusive. That is, results
+        .. note::
+
+        ``start`` is inclusive, but ``end`` is exclusive. That is, results
         will be returned for all windows that start in the interval [start, end).
         If end < start+2^pointwidth you will not get any results. If start and
-        end are not powers of two, the bottom pointwidth bits will be cleared.
+        end are not powers of two, the bottom ``pointwidth`` bits will be cleared.
         Each window will contain statistical summaries of the window.
         Statistical points with count == 0 will be omitted.
 
@@ -1051,10 +1242,12 @@ class Stream(object):
             containing data tuples.  Each data tuple contains a StatPoint and
             the stream version.
 
-        Notes
-        -----
-        As the window-width is a power-of-two, it aligns with BTrDB internal
-        tree data structure and is faster to execute than `windows()`.
+
+        .. note::
+
+            As the window-width is a power-of-two, it aligns with ``BTrDB`` internal
+            tree data structure and is faster to execute than ``windows()``.
+
         """
         materialized = []
         start = to_nanoseconds(start)
@@ -1088,21 +1281,24 @@ class Stream(object):
         statistical aggregates currently include the mean, minimum, and maximum
         of the data and the count of data points composing the window.
 
-        Note that `start` is inclusive, but `end` is exclusive. That is, results
-        will be returned for all windows that start in the interval [start, end).
-        If end < start+2^pointwidth you will not get any results. If start and
-        end are not powers of two, the bottom pointwidth bits will be cleared.
-        Each window will contain statistical summaries of the window.
-        Statistical points with count == 0 will be omitted.
+
+        .. note::
+
+            ``start`` is inclusive, but ``end`` is exclusive. That is, results
+            will be returned for all windows that start in the interval [start, end).
+            If end < start+2^pointwidth you will not get any results. If start and
+            end are not powers of two, the bottom ``pointwidth`` bits will be cleared.
+            Each window will contain statistical summaries of the window.
+            Statistical points with ``count == 0`` will be omitted.
 
         Parameters
         ----------
         start : int or datetime like object, required
             The start time in nanoseconds for the range to be queried. (see
-            :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
+            :func:``btrdb.utils.timez.to_nanoseconds`` for valid input types)
         end : int or datetime like object, required
             The end time in nanoseconds for the range to be queried. (see
-            :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
+            :func:``btrdb.utils.timez.to_nanoseconds`` for valid input types)
         pointwidth : int, required
             Specify the number of ns between data points (2**pointwidth)
         version : int, default: 0
@@ -1124,12 +1320,15 @@ class Stream(object):
         pyarrow.Table
             Returns a pyarrow table containing the windows of data.
 
-        Notes
-        -----
-        As the window-width is a power-of-two, it aligns with BTrDB internal
-        tree data structure and is faster to execute than `windows()`.
 
-        This method is available for commercial customers with arrow-enabled servers.
+        .. note::
+
+            As the window-width is a power-of-two, it aligns with BTrDB internal
+            tree data structure and is faster to execute than `windows()`.
+
+        .. note::
+
+            This method is available for commercial customers with arrow-enabled servers.
         """
         if not self._btrdb._ARROW_ENABLED:
             raise NotImplementedError(
@@ -1213,21 +1412,21 @@ class Stream(object):
             containing data tuples.  Each data tuple contains a StatPoint and
             the stream version (tuple(tuple(StatPoint, int), ...)).
 
-        Notes
-        -----
-        Windows returns arbitrary precision windows from BTrDB. It is slower
-        than AlignedWindows, but still significantly faster than RawValues. Each
-        returned window will be `width` nanoseconds long. `start` is inclusive,
-        but `end` is exclusive (e.g if end < start+width you will get no
-        results). That is, results will be returned for all windows that start
-        at a time less than the end timestamp. If (`end` - `start`) is not a
-        multiple of width, then end will be decreased to the greatest value less
-        than end such that (end - start) is a multiple of `width` (i.e., we set
-        end = start + width * floordiv(end - start, width). The `depth`
-        parameter previously available has been deprecated. The only valid value
-        for depth is now 0.
 
-        This method is available for commercial customers with arrow-enabled servers.
+        .. note::
+
+            ``windows`` returns arbitrary precision windows from BTrDB. It is slower
+            than ``aligned_windows``, but can be significantly faster than raw value queries (``values``). Each
+            returned window will be ``width`` nanoseconds long. ``start`` is inclusive,
+            but ``end`` is exclusive (e.g if ``end < start+width`` you will get no
+            results). That is, results will be returned for all windows that start
+            at a time less than the end timestamp. If (``end`` - ``start``) is not a
+            multiple of ``width``, then ``end`` will be decreased to the greatest value less
+            than ``end`` such that (``end`` - ``start``) is a multiple of ``width`` (i.e., we set
+            ``end = start + width * floordiv(end - start, width)``. The ``depth``
+            parameter previously available has been deprecated. The only valid value
+            for ``depth`` is now ``0``.
+
         """
         materialized = []
         start = to_nanoseconds(start)
@@ -1282,20 +1481,24 @@ class Stream(object):
         pyarrow.Table
             Returns a pyarrow Table containing windows of data.
 
-        Notes
-        -----
-        Windows returns arbitrary precision windows from BTrDB. It is slower
-        than AlignedWindows, but still significantly faster than RawValues. Each
-        returned window will be `width` nanoseconds long. `start` is inclusive,
-        but `end` is exclusive (e.g if end < start+width you will get no
-        results). That is, results will be returned for all windows that start
-        at a time less than the end timestamp. If (`end` - `start`) is not a
-        multiple of width, then end will be decreased to the greatest value less
-        than end such that (end - start) is a multiple of `width` (i.e., we set
-        end = start + width * floordiv(end - start, width). The `depth`
-        parameter previously available has been deprecated. The only valid value
-        for depth is now 0.
-        This method is available for commercial customers with arrow-enabled servers.
+
+        .. note::
+
+            ``windows`` returns arbitrary precision windows from ``BTrDB``. It is slower
+            than ``aligned_windows``, but still significantly faster than RawValues. Each
+            returned window will be ``width`` nanoseconds long. ``start`` is inclusive,
+            but ``end`` is exclusive (e.g if end < start+width you will get no
+            results). That is, results will be returned for all windows that start
+            at a time less than the ``end`` timestamp. If (``end`` - ``start``) is not a
+            multiple of ``width``, then ``end`` will be decreased to the greatest value less
+            than ``end`` such that (``end`` - ``start``) is a multiple of `width` (i.e., we set
+            ``end = start + width * floordiv(end - start, width)``. The ``depth``
+            parameter previously available has been deprecated. The only valid value
+            for ``depth`` is now 0.
+
+        .. note::
+
+            This method is available for commercial customers with arrow-enabled servers.
         """
         if not self._btrdb._ARROW_ENABLED:
             raise NotImplementedError(_arrow_not_impl_str.format("arrow_windows"))
@@ -1344,17 +1547,17 @@ class Stream(object):
         """
         Finds the closest point in the stream to a specified time.
 
-        Return the point nearest to the specified `time` in nanoseconds since
-        Epoch in the stream with `version` while specifying whether to search
-        forward or backward in time. If `backward` is false, the returned point
-        will be >= `time`. If backward is true, the returned point will be <
-        `time`. The version of the stream used to satisfy the query is returned.
+        Return the point nearest to the specified ``time`` in nanoseconds since
+        Epoch in the stream with ``version`` while specifying whether to search
+        forward or backward in time. If ``backward`` is ``false``, the returned point
+        will be >= ``time``. If ``backward`` is ``true``, the returned point will be <
+        ``time``. The ``version`` of the ``stream`` used to satisfy the query is returned.
 
         Parameters
         ----------
         time : int or datetime like object
             The time (in nanoseconds since Epoch) to search near (see
-            :func:`btrdb.utils.timez.to_nanoseconds` for valid input types)
+            :func:``btrdb.utils.timez.to_nanoseconds`` for valid input types)
         version : int
             Version of the stream to use in search
         backward : boolean
@@ -1497,6 +1700,9 @@ class StreamSetBase(Sequence):
         return not bool(self.pointwidth or (self.width and self.depth == 0))
 
     def _latest_versions(self):
+        """
+        :meta private:
+        """
         uuid_ver_tups = self._btrdb._executor.map(
             lambda s: (s.uuid, s.version()), self._streams
         )
@@ -1506,7 +1712,7 @@ class StreamSetBase(Sequence):
         """
         Saves the stream versions that future materializations should use.  If
         no pin is requested then the first materialization will automatically
-        pin the return versions.  Versions can also be supplied through a dict
+        pin the return versions.  Versions can also be supplied through a ``dict``
         object with key:UUID, value:stream.version().
 
         Parameters
@@ -1519,6 +1725,10 @@ class StreamSetBase(Sequence):
         StreamSet
             Returns self
 
+        Examples
+        --------
+        >>> version_map = {s.uuid: 0 for s in streamset}
+        >>> pinned_streamset = streamset.pin_versions(versions=version_map)
         """
         if versions is not None:
             if not isinstance(versions, dict):
@@ -1547,6 +1757,18 @@ class StreamSetBase(Sequence):
         dict
             A dict containing the stream UUID and version ints as key/values
 
+
+        Examples
+        --------
+        A pinned vs non-pinned streamset
+
+        >>> streamset = btrdb.stream.StreamSet([stream1, stream2])
+        >>> version_map = {s.uuid: 0 for s streamset}
+        >>> pinned_streamset = streamset.pin_versions(versions=version_map)
+        >>> pinned_streamset.versions()
+        {UUID('fa42f64a-a851-408f-aa7e-88a85b3d295c'): 0, UUID('18e5527a-ed13-424d-bb97-3e06a763609e'): 0}
+        >>> streamset.versions()
+        {UUID('fa42f64a-a851-408f-aa7e-88a85b3d295c'): 34532, UUID('18e5527a-ed13-424d-bb97-3e06a763609e'): 12345}
         """
         return (
             self._pinned_versions if self._pinned_versions else self._latest_versions()
@@ -1561,10 +1783,6 @@ class StreamSetBase(Sequence):
         all points in the streams. The count is modified by start and end
         filters or by pinning versions.
 
-        Note that this helper method sums the counts of all StatPoints returned
-        by ``aligned_windows``. Because of this the start and end timestamps
-        may be adjusted if they are not powers of 2.
-
         Parameters
         ----------
         precise : bool, default = False
@@ -1574,6 +1792,27 @@ class StreamSetBase(Sequence):
         -------
         int
             The total number of points in all streams for the specified filters.
+
+        .. note::
+
+            Note that this helper method sums the counts of all StatPoints returned
+            by ``aligned_windows``. Because of this the start and end timestamps
+            may be adjusted if they are not powers of 2.
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream1 = conn.stream_from_uuid("...")
+        >>> stream2 = conn.stream_from_uuid("...")
+        >>> streamset = btrdb.stream.StreamSet([stream1, stream2])
+        >>> streamset.count()
+        2345
+        >>> filtered_streamset = streamset.filter(start=1500000000000000000, end=1500000001000000000)
+        >>> filtered_streamset.count(precise=True)
+        734
+        >>> streamset.filter(start=1500000000000000000, end=1500000001000000000).count(precise=True)
+        734
         """
         params = self._params_from_filters()
         start = params.get("start", MINIMUM_TIME)
@@ -1605,6 +1844,15 @@ class StreamSetBase(Sequence):
         tuple
             The earliest points of data found among all streams
 
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream1 = conn.stream_from_uuid("...")
+        >>> stream2 = conn.stream_from_uuid("...")
+        >>> streamset = btrdb.stream.StreamSet([stream1, stream2])
+        >>> streamset.earliest()
+        (<RawPoint ...>, <RawPoint ...>)
         """
         earliest = []
         params = self._params_from_filters()
@@ -1637,6 +1885,15 @@ class StreamSetBase(Sequence):
         tuple
             The latest points of data found among all streams
 
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream1 = conn.stream_from_uuid("...")
+        >>> stream2 = conn.stream_from_uuid("...")
+        >>> streamset = btrdb.stream.StreamSet([stream1, stream2])
+        >>> streamset.earliest()
+        (<RawPoint ...>, <RawPoint ...>)
         """
         latest = []
         params = self._params_from_filters()
@@ -1664,6 +1921,16 @@ class StreamSetBase(Sequence):
         -------
         tuple
             The latest points of data found among all streams
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream1 = conn.stream_from_uuid("...")
+        >>> stream2 = conn.stream_from_uuid("...")
+        >>> streamset = btrdb.stream.StreamSet([stream1, stream2])
+        >>> streamset.current()
+        (<RawPoint ...>, <RawPoint ...>)
         """
         latest = []
         params = self._params_from_filters()
@@ -1677,12 +1944,15 @@ class StreamSetBase(Sequence):
             )
 
         versions = self.versions()
-        latest_points_gen = self._btrdb._executor.map(
+        current_points_gen = self._btrdb._executor.map(
             lambda s: (s.nearest(now, version=versions.get(s.uuid, 0), backward=True)),
             self._streams,
         )
-        for point in latest_points_gen:
-            latest.append(point)
+        for point in current_points_gen:
+            if point is not None:
+                latest.append(point[0])
+            else:
+                latest.append(None)
 
         return tuple(latest)
 
@@ -1743,12 +2013,37 @@ class StreamSetBase(Sequence):
         StreamSet
             a new instance cloned from the original with filters applied
 
-        Notes
-        -----
-        If you set `sampling_frequency` to a non-zero value, the stream data returned will be aligned to a
-        grid of timestamps based on the period of the sampling frequency. For example, a sampling rate of 30hz will
-        have a sampling period of 1/30hz -> ~33_333_333 ns per sample. Leave sampling_frequency as None, or set to 0 to
-        prevent time alignment. You should **not** use aligned data for frequency-based analysis.
+
+        .. note::
+
+            If you set ``sampling_frequency`` to a non-zero value, the stream data returned will be aligned to a
+            grid of timestamps based on the period of the sampling frequency. For example, a sampling rate of 30hz will
+            have a sampling period of 1/30hz -> ~33_333_333 ns per sample. Leave ``sampling_frequency`` as ``None``, or set to ``0`` to
+            prevent time alignment. You should **not** use aligned data for frequency-based analysis.
+
+
+        Examples
+        --------
+        create a streamset and apply a few filters
+
+        >>> streamset = btrdb.stream.StreamSet(list_of_streams)
+        >>> print(f"Total streams: {len(streamset)}")
+        Total streams: 89
+
+        >>> streamset.filter(units="Volts")
+        >>> print(f"Total streams: {len(streamset)}")
+        Total streams: 89
+
+        >>> filtered_streamset = streamset.filter(units="Volts")
+        >>> print(f"Total streams: {len(filtered_streamset)}")
+        Total streams: 23
+
+        >>> multiple_filters_streamset = (streamset.filter(unit="Volts")
+        >>>                                 .filter(name="Sensor 1")
+        >>>                                 .filter(annotations={"phase":"A"})
+        >>>                              )
+        >>> print(f"Total streams: {len(multiple_filters_streamset)}")
+        Total streams: 1
         """
 
         obj = self.clone()
@@ -1874,19 +2169,35 @@ class StreamSetBase(Sequence):
             Returns self
 
 
-        Notes
-        -----
-        Windows returns arbitrary precision windows from BTrDB. It is slower
-        than aligned_windows, but still significantly faster than values. Each
-        returned window will be width nanoseconds long. start is inclusive, but
-        end is exclusive (e.g. if end < start+width you will get no results).
-        That is, results will be returned for all windows that start at a time
-        less than the end timestamp. If (end - start) is not a multiple of
-        width, then end will be decreased to the greatest value less than end
-        such that (end - start) is a multiple of width (i.e., we set end = start
-        + width * floordiv(end - start, width)).  The `depth` parameter previously
-        available has been deprecated. The only valid value for depth is now 0.
+        .. note::
 
+            ``windows`` returns arbitrary precision windows from BTrDB. It is slower
+            than ``aligned_windows``, but can be significantly faster than values.
+            Each returned window will be ``width`` nanoseconds long.
+            ``start`` is inclusive, but ``end`` is exclusive ( ``[start, end) )
+            (e.g. if end < start+width you will get no results).
+            That is, results will be returned for all windows that start at a time
+            less than the end timestamp. If (``end`` - ``start``) is not a multiple of
+            ``width``, then ``end`` will be decreased to the greatest value less than ``end``
+            such that (end - start) is a multiple of width (i.e., we set end = start
+            + width * floordiv(end - start, width)).  The ``depth`` parameter previously
+            available has been deprecated. The only valid value for ``depth`` is now ``0``.
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream1 = conn.stream_from_uuid("...")
+        >>> stream2 = conn.stream_from_uuid("...")
+        >>> streamset = btrdb.stream.StreamSet([stream1, stream2])
+        >>> streamset.windows(width=1000000000)
+        <StreamSet ...>
+        >>> streamset.windows(width=1000000000, depth=0)
+        <StreamSet ...>
+        >>> streamset.aligned_windows(pointwidth=30)
+        Traceback (most recent call last):
+          ...
+        btrdb.exceptions.InvalidOperation: A window operation is already requested
         """
         if not self.allow_window:
             raise InvalidOperation("A window operation is already requested")
@@ -1915,18 +2226,32 @@ class StreamSetBase(Sequence):
         StreamSet
             Returns self
 
-        Notes
-        -----
-        `aligned_windows` reads power-of-two aligned windows from BTrDB. It is
-        faster than Windows(). Each returned window will be 2^pointwidth
-        nanoseconds long, starting at start. Note that start is inclusive, but
-        end is exclusive. That is, results will be returned for all windows that
-        start in the interval [start, end). If end < start+2^pointwidth you will
-        not get any results. If start and end are not powers of two, the bottom
-        pointwidth bits will be cleared. Each window will contain statistical
-        summaries of the window. Statistical points with count == 0 will be
-        omitted.
 
+        .. note::
+
+            ``aligned_windows`` reads power-of-two aligned windows from BTrDB. It is
+            faster than ``windows()``. Each returned window will be 2^``pointwidth``
+            nanoseconds long, beginning at ``start``. Note that start is inclusive, but
+            end is exclusive. That is, results will be returned for all windows that
+            start in the interval ``[start, end)``. If ``end`` < ``start``+2^``pointwidth`` you will
+            not get any results. If ``start`` and ``end`` are not powers of two, the bottom
+            ``pointwidth`` bits will be cleared. Each window will contain statistical
+            summaries of the window. Statistical points with ``count`` == 0 will be
+            omitted.
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream1 = conn.stream_from_uuid("...")
+        >>> stream2 = conn.stream_from_uuid("...")
+        >>> streamset = btrdb.stream.StreamSet([stream1, stream2])
+        >>> streamset.aligned_windows(pointwidth=30)
+        <StreamSet ...>
+        >>> streamset.windows(width=1000000000)
+        Traceback (most recent call last):
+          ...
+        btrdb.exceptions.InvalidOperation: A window operation is already requested
         """
         if not self.allow_window:
             raise InvalidOperation("A window operation is already requested")
@@ -1943,6 +2268,8 @@ class StreamSetBase(Sequence):
         ----------
         as_iterators : bool
             Returns each single stream's data as an iterator.  Defaults to False.
+
+        :meta private:
         """
         params = self._params_from_filters()
         # sampling freq not supported for non-arrow streamset ops
@@ -2001,6 +2328,20 @@ class StreamSetBase(Sequence):
             A list of tuples containing a RawPoint (or StatPoint) and the stream
             version (list(tuple(RawPoint, int))).
 
+        Examples
+        --------
+        >>> for row in streams.rows():
+        >>>    print(row)
+        (None, RawPoint(1500000000000000000, 1.0), RawPoint(1500000000000000000, 1.0), RawPoint(1500000000000000000, 1.0))
+        (RawPoint(1500000000100000000, 2.0), None, RawPoint(1500000000100000000, 2.0), RawPoint(1500000000100000000, 2.0))
+        (None, RawPoint(1500000000200000000, 3.0), None, RawPoint(1500000000200000000, 3.0))
+        (RawPoint(1500000000300000000, 4.0), None, RawPoint(1500000000300000000, 4.0), RawPoint(1500000000300000000, 4.0))
+        (None, RawPoint(1500000000400000000, 5.0), RawPoint(1500000000400000000, 5.0), RawPoint(1500000000400000000, 5.0))
+        (RawPoint(1500000000500000000, 6.0), None, None, RawPoint(1500000000500000000, 6.0))
+        (None, RawPoint(1500000000600000000, 7.0), RawPoint(1500000000600000000, 7.0), RawPoint(1500000000600000000, 7.0))
+        (RawPoint(1500000000700000000, 8.0), None, RawPoint(1500000000700000000, 8.0), RawPoint(1500000000700000000, 8.0))
+        (None, RawPoint(1500000000800000000, 9.0), RawPoint(1500000000800000000, 9.0), RawPoint(1500000000800000000, 9.0))
+        (RawPoint(1500000000900000000, 10.0), None, RawPoint(1500000000900000000, 10.0), RawPoint(1500000000900000000, 10.0))
         """
         result = []
         streamset_data = self._streamset_data(as_iterators=True)
@@ -2050,14 +2391,34 @@ class StreamSetBase(Sequence):
               - 'retain': if two points have the same timestamp, the old one is kept
               - 'replace': if two points have the same timestamp, the new one is kept
 
-        Notes
-        -----
-        You MUST convert your datetimes into utc+0 yourself. BTrDB expects utc+0 datetimes.
 
         Returns
         -------
         dict[uuid, int]
             The versions of the stream after inserting new points.
+
+
+        .. note::
+
+            You MUST convert your datetimes into UTC+0 **yourself**. BTrDB expects UTC+0 datetimes.
+
+
+        Examples
+        --------
+        >>> import pandas as pd
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> stream1 = conn.stream_from_uuid("...")
+        >>> stream2 = conn.stream_from_uuid("...")
+        >>> streamset = btrdb.stream.StreamSet([stream1, stream2])
+        >>> data_map = {
+        ...     stream1.uuid: pd.DataFrame({'time': [1500000000000000000, 1500000000100000000], 'value': [1.0, 2.0]}),
+        ...     stream2.uuid: pd.DataFrame({'time': [1500000000000000000, 1500000000100000000], 'value': [3.0, 4.0]})
+        ... }
+        >>> streamset.insert(data_map)
+        {UUID('...'): 1234, UUID('...'): 5678}
+        >>> streamset.insert(data_map, merge='replace')
+        {UUID('...'): 1235, UUID('...'): 5679}
         """
         filtered_data_map = {s.uuid: data_map[s.uuid] for s in self._streams}
         for key, dat in filtered_data_map.items():
@@ -2118,6 +2479,9 @@ class StreamSetBase(Sequence):
         return versions
 
     def _params_from_filters(self):
+        """
+        :meta private:
+        """
         params = {}
         for filter in self.filters:
             if filter.start is not None:
@@ -2133,6 +2497,8 @@ class StreamSetBase(Sequence):
     def values_iter(self):
         """
         Must return context object which would then close server cursor on __exit__
+
+        :meta private:
         """
         raise NotImplementedError()
 
@@ -2153,9 +2519,9 @@ class StreamSetBase(Sequence):
 
         This data will be sorted by the 'time' column.
 
-        Notes
-        -----
-        This method is available for commercial customers with arrow-enabled servers.
+        .. note::
+
+            This method is available for commercial customers with arrow-enabled servers.
         """
         if pa is None:
             raise ImportError(_ARROW_IMPORT_MSG)

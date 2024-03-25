@@ -16,15 +16,6 @@ Welcome to btrdb docs!
 .. image:: https://img.shields.io/pypi/v/btrdb.svg
     :target: https://pypi.python.org/project/btrdb/
 
-.. note::
-
-  Starting with the 5.0 release, btrdb-python will be Python 3 only!  This decision
-  was not made lightly but is necessary to keep compatibility with underlying
-  packages.
-
-  In addition, this software is only compatible with version 5.x of the BTrDB
-  server.  To communicate with a 4.x server, please install an earlier version
-  of this software.
 
 Welcome to btrdb-python's documentation.  We provide Python access to the Berkeley
 Tree Database (BTrBD) along with some select convenience methods.  If you are
@@ -58,6 +49,9 @@ your appetite.
       end = start + (60 * 60 * 1e9)
       for point, _ in stream.values(start, end):
           print(point.time, point.value)
+
+      # return the data as an arrow table instead
+      data = stream.arrow_values(start, end)
 
 
 User Guide

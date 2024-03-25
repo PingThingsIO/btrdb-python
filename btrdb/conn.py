@@ -21,14 +21,14 @@ import os
 import re
 import uuid as uuidlib
 from concurrent.futures import ThreadPoolExecutor
-from typing import List
+from typing import List, Tuple, Union
 from warnings import warn
 
 import certifi
 import grpc
 from grpc._cython.cygrpc import CompressionAlgorithm
 
-from btrdb.exceptions import InvalidOperation, StreamNotFoundError, retry
+from btrdb.exceptions import BTrDBError, InvalidOperation, StreamNotFoundError, retry
 from btrdb.stream import Stream, StreamSet
 from btrdb.utils.conversion import to_uuid
 from btrdb.utils.general import unpack_stream_descriptor
@@ -55,11 +55,15 @@ class Connection(object):
 
         Parameters
         ----------
-        addrportstr: str, required
+        addrportstr : str, required
             The address of the cluster to connect to, e.g 123.123.123:4411
-        apikey: str, optional
+        apikey : str, optional
             The optional API key to authenticate requests
 
+        Notes
+        -----
+        The ``btrdb.connect`` method is a helper function to make connecting to the platform easier
+            usually that will be sufficient for most users.
         """
         addrport = addrportstr.split(":", 2)
         # 100MB size limit ~ 2500 streams for 5000 points with each point being 64bit
@@ -197,6 +201,10 @@ class BTrDB(object):
 
     def __init__(self, endpoint):
         self.ep = endpoint
+        try:
+            _ = self.ep.info()
+        except Exception as err:
+            raise BTrDBError(f"Could not connect to the database, error message: {err}")
         self._executor = ThreadPoolExecutor()
         try:
             self._ARROW_ENABLED = _is_arrow_enabled(self.ep.info())
@@ -208,8 +216,8 @@ class BTrDB(object):
     @retry
     def query(
         self,
-        stmt,
-        params=None,
+        stmt: str,
+        params: Union[Tuple[str], List[str]] = None,
         auto_retry=False,
         retries=5,
         retry_delay=3,
@@ -221,23 +229,23 @@ class BTrDB(object):
 
         Parameters
         ----------
-        stmt: str
+        stmt : str
             a SQL statement to be executed on the BTrDB metadata.  Available
             tables are noted below.  To sanitize inputs use a `$1` style parameter such as
             `select * from streams where name = $1 or name = $2`.
-        params: list or tuple
+        params : list or tuple
             a list of parameter values to be sanitized and interpolated into the
             SQL statement. Using parameters forces value/type checking and is
             considered a best practice at the very least.
-        auto_retry: bool, default: False
+        auto_retry : bool, default: False
             Whether to retry this request in the event of an error
-        retries: int, default: 5
+        retries : int, default: 5
             Number of times to retry this request if there is an error. Will
             be ignored if auto_retry is False
-        retry_delay: int, default: 3
+        retry_delay : int, default: 3
             initial time to wait before retrying function call if there is an error.
             Will be ignored if auto_retry is False
-        retry_backoff: int, default: 4
+        retry_backoff : int, default: 4
             Exponential factor by which the backoff increases between retries.
             Will be ignored if auto_retry is False
 
@@ -250,10 +258,48 @@ class BTrDB(object):
         Notes
         -------
         Parameters will be inserted into the SQL statement as noted by the
-        paramter number such as `$1`, `$2`, or `$3`.  The `streams` table is
+        parameter number such as `$1`, `$2`, or `$3`.  The `streams` table is
         available for `SELECT` statements only.
 
         See https://btrdb.readthedocs.io/en/latest/ for more info.
+
+        The following are the queryable columns in the postgres ``streams`` table.
+
+        +------------------+------------------------+-----------+
+        |      Column      |          Type          | Nullable  |
+        +==================+========================+===========+
+        | uuid             | uuid                   | not null  |
+        +------------------+------------------------+-----------+
+        | collection       | character varying(256) | not null  |
+        +------------------+------------------------+-----------+
+        | name             | character varying(256) | not null  |
+        +------------------+------------------------+-----------+
+        | unit             | character varying(256) | not null  |
+        +------------------+------------------------+-----------+
+        | ingress          | character varying(256) | not null  |
+        +------------------+------------------------+-----------+
+        | property_version | bigint                 | not null  |
+        +------------------+------------------------+-----------+
+        | annotations      | hstore                 |           |
+        +------------------+------------------------+-----------+
+
+        Examples
+        --------
+        Count all streams in the platform.
+
+        >>> conn = btrdb.connect()
+        >>> conn.query("SELECT COUNT(uuid) FROM streams")
+        [{'count': ...}]
+
+        Count all streams in the collection ``foo/bar`` by passing in the variable as a parameter.
+
+        >>> conn.query("SELECT COUNT(uuid) FROM streams WHERE collection=$1::text", params=["foo/bar"])
+        [{'count': ...}]
+
+        Count all streams in the platform that has a non-null entry for the metadata annotation ``foo``.
+
+        >>> conn.query("SELECT COUNT(uuid) FROM streams WHERE annotations->$1::text IS NOT NULL", params=["foo"])
+        [{'count': ...}]
         """
         if params is None:
             params = list()
@@ -267,17 +313,55 @@ class BTrDB(object):
         """
         Returns a StreamSet object with BTrDB streams from the supplied
         identifiers.  If any streams cannot be found matching the identifier
-        than StreamNotFoundError will be returned.
+        then a ``StreamNotFoundError`` will be returned.
 
         Parameters
         ----------
-        identifiers: str or UUID
+        identifiers : str or UUID
             a single item or iterable of items which can be used to query for
-            streams.  identiers are expected to be UUID as string, UUID as UUID,
+            streams. Identifiers are expected to be UUID as string, UUID as UUID,
             or collection/name string.
 
-        versions: list[int]
+        versions : list[int]
             a single or iterable of version numbers to match the identifiers
+
+        is_collection_prefix : bool, default=False
+            If providing a collection string, is that string just a prefix, or the entire collection name?
+            This will impact how many streams are returned.
+
+
+        Returns
+        -------
+        :class:`StreamSet`
+            Collection of streams.
+
+        Examples
+        --------
+        With a sequence of uuids.
+
+        >>> conn = btrdb.connect()
+        >>> conn.streams(identifiers=list_of_uuids)
+        <btrdb.stream.StreamSet at 0x...>
+
+        With a sequence of uuids and version numbers.
+        Here we are using version 0 to use the latest data points.
+
+        >>> conn.streams(identifiers=list_of_uuids, versions=[0 for _ in list_of_uuids])
+        <btrdb.stream.StreamSet at 0x...>
+
+        Filtering by ``collection`` prefix ``"foo"`` where multiple collections exist like the following:
+        ``foo/bar``, ``foo/baz``, ``foo/bar/new``, and ``foo``.
+        If we set `is_collection_prefix`` to ``True``, this will return all streams that exist in the collections defined above.
+        It is similar to a regex pattern ``^foo.*`` for matching purposes.
+
+        >>> conn.streams(identifiers="foo", is_collection_prefix=True)
+        <btrdb.stream.StreamSet at 0x...>
+
+        If you set ``is_collection_prefix`` to ``False``, this will assume that the string identifier you provide is the full collection name.
+        Matching like the regex here: ``^foo``
+
+        >>> conn.streams(identifiers="foo", is_collection_prefix=False)
+        <btrdb.stream.StreamSet at 0x...>
 
         """
         if versions is not None and not isinstance(versions, list):
@@ -338,13 +422,23 @@ class BTrDB(object):
 
         Parameters
         ----------
-        uuid: UUID
+        uuid : UUID
             The uuid of the requested stream.
 
         Returns
         -------
         Stream
             instance of Stream class or None
+
+        Examples
+        --------
+
+        >>> import btrdb
+        >>> conn = btrdb.connect()
+        >>> uuid = "f98f4b4e-9fab-46b5-8a80-f282059d69b1"
+        >>> stream = conn.stream_from_uuid(uuid)
+        >>> stream
+        <Stream collection=foo/test name=test_stream>
 
         """
         return Stream(self, to_uuid(uuid))
@@ -366,23 +460,23 @@ class BTrDB(object):
 
         Parameters
         ----------
-        uuid: UUID, required
+        uuid : UUID, required
             The uuid of the requested stream.
-        collection: str, required
+        collection : str, required
             The collection string prefix that the stream will belong to.
-        tags: dict, required
-            The tags-level immutable metadata key:value pairs.
-        annotations: dict, optional
+        tags : dict, required
+            The tags-level metadata key:value pairs.
+        annotations : dict, optional
             The mutable metadata of the stream, key:value pairs
-        auto_retry: bool, default: False
+        auto_retry : bool, default: False
             Whether to retry this request in the event of an error
-        retries: int, default: 5
+        retries : int, default: 5
             Number of times to retry this request if there is an error. Will
             be ignored if auto_retry is False
-        retry_delay: int, default: 3
+        retry_delay : int, default: 3
             initial time to wait before retrying function call if there is an error.
             Will be ignored if auto_retry is False
-        retry_backoff: int, default: 4
+        retry_backoff : int, default: 4
             Exponential factor by which the backoff increases between retries.
             Will be ignored if auto_retry is False
 
@@ -390,6 +484,18 @@ class BTrDB(object):
         -------
         Stream
             instance of Stream class
+
+
+        Examples
+        --------
+        >>> import btrdb
+        >>> from uuid import uuid4 # this generates a random uuid
+        >>> conn = btrdb.connect()
+        >>> collection = "new/stream/collection"
+        >>> tags = {"name":"foo", "unit":"V"}
+        >>> annotations = {"bar": "baz"}
+        >>> s = conn.create(uuid=uuid4(), tags=tags, annotations=annotations, collection=collection)
+        <Stream collection=new/stream/collection name=foo>
         """
 
         if tags is None:
@@ -411,12 +517,23 @@ class BTrDB(object):
 
     def info(self):
         """
-        Returns information about the connected BTrDB server.
+        Returns information about the platform proxy server.
 
         Returns
         -------
         dict
-            server connection and status information
+            Proxy server connection and status information
+
+        Examples
+        --------
+        >>> conn = btrdb.connect()
+        >>> conn.info()
+        {
+        ..        'majorVersion': 5,
+        ..        'minorVersion': 8,
+        ..        'build': ...,
+        ..        'proxy': ...,
+        }
 
         """
         info = self.ep.info()
@@ -434,12 +551,26 @@ class BTrDB(object):
 
         Parameters
         ----------
-        starts_with: str, optional, default = ''
+        starts_with : str, optional, default: ''
             Filter collections that start with the string provided, if none passed, will list all collections.
 
         Returns
         -------
         collections: List[str]
+
+        Examples
+        --------
+
+        Assuming we have the following collections in the platform:
+        ``foo``, ``bar``, ``foo/baz``, ``bar/baz``
+
+        >>> conn = btrdb.connect()
+        >>> conn.list_collections().sort()
+        ["bar", "bar/baz", "foo", "foo/bar"]
+
+        >>> conn.list_collections(starts_with="foo")
+        ["foo", "foo/bar"]
+
 
         """
         return [c for some in self.ep.listCollections(starts_with) for c in some]
@@ -465,13 +596,25 @@ class BTrDB(object):
         Returns a list of annotation keys used in a given collection prefix.
 
         Parameters
-        -------
-        collection: str
+        ----------
+        collection : str
             Prefix of the collection to filter.
 
         Returns
         -------
-        annotations: list[str]
+        annotations : list[str]
+
+        Notes
+        -----
+        This query treats the ``collection`` string as a prefix, so ``collection="foo"`` will match with the following wildcard syntax ``foo%``.
+        If you only want to filter for a single collection, you will need to provide the full collection, if there are other collections
+        that match the ``foo%`` pattern, you might need to use a custom SQL query using ``conn.query``.
+
+        Examples
+        --------
+        >>> conn.list_unique_annotations(collection="sunshine/PMU1")
+        ['foo', 'location', 'impedance']
+
         """
         return self._list_unique_tags_annotations("annotations", collection)
 
@@ -480,13 +623,28 @@ class BTrDB(object):
         Returns a list of names used in a given collection prefix.
 
         Parameters
-        -------
-        collection: str
+        ----------
+        collection : str
             Prefix of the collection to filter.
 
         Returns
         -------
-        names: list[str]
+        names : list[str]
+
+        Examples
+        --------
+        Can specify a full ``collection`` name.
+
+        >>> conn.list_unique_names(collection="sunshine/PMU1")
+        ['C1ANG', 'C1MAG', 'C2ANG', 'C2MAG', 'C3ANG', 'C3MAG', 'L1ANG', 'L1MAG', 'L2ANG', 'L2MAG', 'L3ANG', 'L3MAG', 'LSTATE']
+
+        And also provide a ``collection`` prefix.
+
+        >>> conn.list_unique_names(collection="sunshine/")
+        ['C1ANG', 'C1MAG', 'C2ANG', 'C2MAG', 'C3ANG', 'C3MAG', 'L1ANG', 'L1MAG', 'L2ANG', 'L2MAG', 'L3ANG', 'L3MAG', 'LSTATE']
+
+
+
         """
         return self._list_unique_tags_annotations("name", collection)
 
@@ -495,13 +653,21 @@ class BTrDB(object):
         Returns a list of units used in a given collection prefix.
 
         Parameters
-        -------
-        collection: str
+        ----------
+        collection : str
             Prefix of the collection to filter.
 
         Returns
         -------
-        units: list[str]
+        units : list[str]
+
+
+        Examples
+        --------
+
+        >>> conn.list_unique_units(collection="sunshine/PMU1")
+        ['amps', 'deg', 'mask', 'volts']
+
         """
         return self._list_unique_tags_annotations("unit", collection)
 
@@ -524,31 +690,54 @@ class BTrDB(object):
 
         Parameters
         ----------
-        collection: str
+        collection : str
             collections to use when searching for streams, case sensitive.
-        is_collection_prefix: bool
+        is_collection_prefix : bool
             Whether the collection is a prefix.
-        tags: Dict[str, str]
+        tags : Dict[str, str]
             The tags to identify the stream.
-        annotations: Dict[str, str]
+        annotations : Dict[str, str]
             The annotations to identify the stream.
-        auto_retry: bool, default: False
+        auto_retry : bool, default: False
             Whether to retry this request in the event of an error
-        retries: int, default: 5
+        retries : int, default: 5
             Number of times to retry this request if there is an error. Will
             be ignored if auto_retry is False
-        retry_delay: int, default: 3
+        retry_delay : int, default: 3
             initial time to wait before retrying function call if there is an error.
             Will be ignored if auto_retry is False
-        retry_backoff: int, default: 4
+        retry_backoff : int, default: 4
             Exponential factor by which the backoff increases between retries.
             Will be ignored if auto_retry is False
 
         Returns
         ------
-        list
-            A list of stream objects found with the provided search arguments.
+        list[Stream]
+            A list of ``Stream`` objects found with the provided search arguments.
 
+
+        .. note::
+
+            In a future release, the default return value of this function will be a ``StreamSet``
+
+        Examples
+        --------
+
+        >>> conn = btrdb.connect()
+        >>> conn.streams_in_collection(collection="foo", is_collection_prefix=True)
+        [<Stream collection=foo name=test1>, <Stream collection=foo name=test2,
+        ... <Stream collection=foo/bar, name=testX>, <Stream collection=foo/baz/bar name=testY>]
+
+        >>> conn.streams_in_collection(collection="foo", is_collection_prefix=False)
+        [<Stream collection=foo, name=test1>, <Stream collection=foo, name=test2>]
+
+        >>> conn.streams_in_collection(collection="foo",
+        ...  is_collection_prefix=False, tags={"unit":"Volts"})
+        [<Stream collection=foo, name=test1>]
+
+        >>> conn.streams_in_collection(collection="foo",
+        ...  is_collection_prefix=False, tags={"unit":"UNKNOWN"})
+        []
         """
         result = []
 
@@ -581,7 +770,7 @@ class BTrDB(object):
                     )
         # TODO: In future release update this method to return a streamset object.
         warn(
-            "StreamSet will be returned in a future release.",
+            "StreamSet will be the default return object for ``streams_in_collection`` in a future release.",
             FutureWarning,
             stacklevel=2,
         )
@@ -598,21 +787,21 @@ class BTrDB(object):
     ):
         """
         Gives statistics about metadata for collections that match a
-        prefix.
+        ``prefix``.
 
         Parameters
         ----------
-        prefix: str, required
+        prefix : str, required
             A prefix of the collection names to look at
-        auto_retry: bool, default: False
+        auto_retry : bool, default: False
             Whether to retry this request in the event of an error
-        retries: int, default: 5
+        retries : int, default: 5
             Number of times to retry this request if there is an error. Will
             be ignored if auto_retry is False
-        retry_delay: int, default: 3
+        retry_delay : int, default: 3
             initial time to wait before retrying function call if there is an error.
             Will be ignored if auto_retry is False
-        retry_backoff: int, default: 4
+        retry_backoff : int, default: 4
             Exponential factor by which the backoff increases between retries.
             Will be ignored if auto_retry is False
 
@@ -621,6 +810,16 @@ class BTrDB(object):
         tuple
             A tuple of dictionaries containing metadata on the streams in the
             provided collection.
+
+        Examples
+        --------
+        >>> conn.collection_metadata("sunshine/PMU1")
+        ({'name': 0, 'unit': 0, 'ingress': 0, 'distiller': 0},
+        .. {'foo': 1, 'impedance': 12, 'location': 12})
+
+        >>> conn.collection_metadata("sunshine/")
+        ({'name': 0, 'unit': 0, 'ingress': 0, 'distiller': 0},
+        .. {'foo': 1, 'impedance': 72, 'location': 72})
 
         """
         ep = self.ep

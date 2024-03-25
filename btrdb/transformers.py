@@ -94,6 +94,11 @@ def to_series(streamset, datetime64_index=True, agg="mean", name_callable=None):
         Specify a callable that can be used to determine the series name given a
         Stream object.
 
+
+    .. note::
+
+        This method does **not** use the ``arrow`` -accelerated endpoints for faster and more efficient data retrieval.
+
     """
     if pd is None:
         raise ImportError(_IMPORT_ERR_MSG.format("pandas"))
@@ -124,7 +129,7 @@ def to_series(streamset, datetime64_index=True, agg="mean", name_callable=None):
     return result
 
 
-def arrow_to_series(streamset, agg="mean", name_callable=None):
+def arrow_to_series(streamset, agg=None, name_callable=None):
     """
     Returns a list of Pandas Series objects indexed by time
 
@@ -139,9 +144,82 @@ def arrow_to_series(streamset, agg="mean", name_callable=None):
         Specify a callable that can be used to determine the series name given a
         Stream object.
 
-    Notes
-    -----
-    This method is available for commercial customers with arrow-enabled servers.
+
+    Returns
+    -------
+    List[pandas.Series]
+
+
+    .. note::
+
+        This method is available for commercial customers with arrow-enabled servers.
+
+
+    .. note::
+
+        If you are not performing a ``window`` or ``aligned_window`` query, the ``agg`` parameter will be ignored.
+
+    Examples
+    --------
+    Return a list of series of raw data per stream.
+
+    >>> conn = btrdb.connect()
+    >>> s1 = conn.stream_from_uuid('c9fd8735-5ec5-4141-9a51-d23e1b2dfa42')
+    >>> s2 = conn.stream_from_uuid('9173fa70-87ab-4ac8-ac08-4fd63b910cae'
+    >>> streamset = btrdb.stream.StreamSet([s1,s2])
+    >>> streamset.filter(start=1500000000000000000, end=1500000000900000001).arrow_to_series(agg=None)
+        [time
+        2017-07-14 02:40:00+00:00            1.0
+        2017-07-14 02:40:00.100000+00:00     2.0
+        2017-07-14 02:40:00.200000+00:00     3.0
+        2017-07-14 02:40:00.300000+00:00     4.0
+        2017-07-14 02:40:00.400000+00:00     5.0
+        2017-07-14 02:40:00.500000+00:00     6.0
+        2017-07-14 02:40:00.600000+00:00     7.0
+        2017-07-14 02:40:00.700000+00:00     8.0
+        2017-07-14 02:40:00.800000+00:00     9.0
+        2017-07-14 02:40:00.900000+00:00    10.0
+        Name: new/stream/collection/foo, dtype: double[pyarrow],
+        time
+        2017-07-14 02:40:00+00:00            1.0
+        2017-07-14 02:40:00.100000+00:00     2.0
+        2017-07-14 02:40:00.200000+00:00     3.0
+        2017-07-14 02:40:00.300000+00:00     4.0
+        2017-07-14 02:40:00.400000+00:00     5.0
+        2017-07-14 02:40:00.500000+00:00     6.0
+        2017-07-14 02:40:00.600000+00:00     7.0
+        2017-07-14 02:40:00.700000+00:00     8.0
+        2017-07-14 02:40:00.800000+00:00     9.0
+        2017-07-14 02:40:00.900000+00:00    10.0
+        Name: new/stream/bar, dtype: double[pyarrow]]
+
+
+        A window query of 0.5seconds long.
+
+        >>> streamset.filter(start=1500000000000000000, end=1500000000900000001)
+        ...          .windows(width=int(0.5 * 10**9))
+        ...          .arrow_to_series(agg=["mean", "count"])
+            [time
+            2017-07-14 02:40:00+00:00           2.5
+            2017-07-14 02:40:00.400000+00:00    6.5
+            Name: new/stream/collection/foo/mean, dtype: double[pyarrow],
+        ...
+            time
+            2017-07-14 02:40:00+00:00           4
+            2017-07-14 02:40:00.400000+00:00    4
+            Name: new/stream/collection/foo/count, dtype: uint64[pyarrow],
+        ...
+            time
+            2017-07-14 02:40:00+00:00           2.5
+            2017-07-14 02:40:00.400000+00:00    6.5
+            Name: new/stream/bar/mean, dtype: double[pyarrow],
+        ...
+            time
+            2017-07-14 02:40:00+00:00           4
+            2017-07-14 02:40:00.400000+00:00    4
+            Name: new/stream/bar/count, dtype: uint64[pyarrow]]
+
+
     """
     if not streamset._btrdb._ARROW_ENABLED:
         raise NotImplementedError(
@@ -177,9 +255,74 @@ def arrow_to_dataframe(streamset, agg=None, name_callable=None) -> pd.DataFrame:
         Specify a callable that can be used to determine the series name given a
         Stream object.
 
-    Notes
-    -----
-    This method is available for commercial customers with arrow-enabled servers.
+
+    .. note::
+
+        This method is available for commercial customers with arrow-enabled servers.
+
+
+    Examples
+    --------
+
+    >>> conn = btrdb.connect()
+    >>> s1 = conn.stream_from_uuid('c9fd8735-5ec5-4141-9a51-d23e1b2dfa42')
+    >>> s2 = conn.stream_from_uuid('9173fa70-87ab-4ac8-ac08-4fd63b910cae'
+    >>> streamset = btrdb.stream.StreamSet([s1,s2])
+    >>> streamset.filter(start=1500000000000000000, end=1500000000900000001).arrow_to_dataframe()
+                                            new/stream/collection/foo       new/stream/bar
+        time
+        2017-07-14 02:40:00+00:00                               1.0             1.0
+        2017-07-14 02:40:00.100000+00:00                        2.0             2.0
+        2017-07-14 02:40:00.200000+00:00                        3.0             3.0
+        2017-07-14 02:40:00.300000+00:00                        4.0             4.0
+        2017-07-14 02:40:00.400000+00:00                        5.0             5.0
+        2017-07-14 02:40:00.500000+00:00                        6.0             6.0
+        2017-07-14 02:40:00.600000+00:00                        7.0             7.0
+        2017-07-14 02:40:00.700000+00:00                        8.0             8.0
+        2017-07-14 02:40:00.800000+00:00                        9.0             9.0
+        2017-07-14 02:40:00.900000+00:00                       10.0            10.0
+
+
+    Use the stream uuids as their column names instead, using a lambda function.
+
+    >>> streamset.filter(start=1500000000000000000, end=1500000000900000001)
+    ...          .arrow_to_dataframe(
+    ...             name_callable=lambda s: str(s.uuid)
+    ...          )
+                                      c9fd8735-5ec5-4141-9a51-d23e1b2dfa42  9173fa70-87ab-4ac8-ac08-4fd63b910cae
+        time
+        2017-07-14 02:40:00+00:00                                          1.0                                   1.0
+        2017-07-14 02:40:00.100000+00:00                                   2.0                                   2.0
+        2017-07-14 02:40:00.200000+00:00                                   3.0                                   3.0
+        2017-07-14 02:40:00.300000+00:00                                   4.0                                   4.0
+        2017-07-14 02:40:00.400000+00:00                                   5.0                                   5.0
+        2017-07-14 02:40:00.500000+00:00                                   6.0                                   6.0
+        2017-07-14 02:40:00.600000+00:00                                   7.0                                   7.0
+        2017-07-14 02:40:00.700000+00:00                                   8.0                                   8.0
+        2017-07-14 02:40:00.800000+00:00                                   9.0                                   9.0
+        2017-07-14 02:40:00.900000+00:00                                  10.0                                  10.0
+
+
+    A window query, with a window width of 0.4 seconds, and only showing the ``mean`` statpoint.
+
+    >>> streamset.filter(start=1500000000000000000, end=1500000000900000001)
+    ...          .windows(width=int(0.4*10**9))
+    ...          .arrow_to_dataframe(agg=["mean"])
+                                                new/stream/collection/foo/mean  new/stream/bar/mean
+        time
+        2017-07-14 02:40:00+00:00                                    2.5                  2.5
+        2017-07-14 02:40:00.400000+00:00                             6.5                  6.5
+
+
+    A window query, with a window width of 0.4 seconds, and only showing the ``mean`` and ``count``  statpoints.
+
+    >>> streamset.filter(start=1500000000000000000, end=1500000000900000001)
+    ...          .windows(width=int(0.4*10**9))
+    ...          .arrow_to_dataframe(agg=["mean", "count"])
+                                  new/stream/collection/foo/mean  new/stream/collection/foo/count  new/stream/bar/mean  new/stream/bar/count
+        time
+        2017-07-14 02:40:00+00:00               2.5                                4                  2.5                     4
+        2017-07-14 02:40:00.400000+00:00        6.5                                4                  6.5                     4
     """
 
     def _rename(col_name, col_names_map):
@@ -263,6 +406,10 @@ def to_dataframe(streamset, agg="mean", name_callable=None):
         Stream object.  This is not compatible with agg == "all" at this time
 
 
+    .. note::
+
+        This method does **not** use the ``arrow`` -accelerated endpoints for faster and more efficient data retrieval.
+
     """
     if pd is None:
         raise ImportError(_IMPORT_ERR_MSG.format("pandas"))
@@ -316,9 +463,11 @@ def arrow_to_polars(streamset, agg=None, name_callable=None):
         Specify a callable that can be used to determine the series name given a
         Stream object.
 
-    Notes
-    -----
-    This method is available for commercial customers with arrow-enabled servers.
+
+    .. note::
+
+        This method is available for commercial customers with arrow-enabled servers.
+
     """
     if not streamset._btrdb._ARROW_ENABLED:
         raise NotImplementedError(
@@ -343,9 +492,11 @@ def arrow_to_polars(streamset, agg=None, name_callable=None):
 def arrow_to_arrow_table(streamset):
     """Return a pyarrow table of data.
 
-    Notes
-    -----
-    This method is available for commercial customers with arrow-enabled servers.
+
+    .. note::
+
+        This method is available for commercial customers with arrow-enabled servers.
+
     """
     if not streamset._btrdb._ARROW_ENABLED:
         raise NotImplementedError(
@@ -371,6 +522,13 @@ def to_polars(streamset, agg="mean", name_callable=None):
     name_callable : lambda, default: lambda s: s.collection + "/" +  s.name
         Specify a callable that can be used to determine the series name given a
         Stream object.  This is not compatible with agg == "all" at this time
+
+
+
+    .. note::
+
+        This method does **not** use the ``arrow`` -accelerated endpoints for faster and more efficient data retrieval.
+
     """
     if pl is None or pd is None:
         raise ImportError(_IMPORT_ERR_MSG.format(",".join(["polars", "pandas"])))
@@ -425,6 +583,11 @@ def to_array(streamset, agg="mean"):
         arrays. Must be one of "min", "mean", "max", "count", or "stddev". This
         argument is ignored if RawPoint values are passed into the function.
 
+
+    .. note::
+
+        This method does **not** use the ``arrow`` -accelerated endpoints for faster and more efficient data retrieval.
+
     """
     if np is None:
         raise ImportError(_IMPORT_ERR_MSG.format("numpy"))
@@ -455,11 +618,16 @@ def arrow_to_numpy(streamset, agg=None):
         arrays. Must be one or more of "min", "mean", "max", "count", or "stddev". This
         argument is ignored if RawPoint values are passed into the function.
 
-    Notes
-    -----
-    This method first converts to a pandas data frame then to a numpy array.
 
-    This method is available for commercial customers with arrow-enabled servers.
+    .. note::
+
+        This method first converts to a pandas data frame then to a numpy array.
+
+
+    .. note::
+
+        This method is available for commercial customers with arrow-enabled servers.
+
     """
     if not streamset._btrdb._ARROW_ENABLED:
         raise NotImplementedError(
@@ -488,6 +656,11 @@ def to_dict(streamset, agg="mean", name_callable=None):
     name_callable : lambda, default: lambda s: s.collection + "/" +  s.name
         Specify a callable that can be used to determine the series name given a
         Stream object.
+
+
+    .. note::
+
+        This method does **not** use the ``arrow`` -accelerated endpoints for faster and more efficient data retrieval.
 
     """
     if not callable(name_callable):
@@ -533,9 +706,11 @@ def arrow_to_dict(streamset, agg=None, name_callable=None):
         Specify a callable that can be used to determine the series name given a
         Stream object.
 
-    Notes
-    -----
-    This method is available for commercial customers with arrow-enabled servers.
+
+    .. note::
+
+        This method is available for commercial customers with arrow-enabled servers.
+
     """
     if not streamset._btrdb._ARROW_ENABLED:
         raise NotImplementedError(
@@ -582,6 +757,12 @@ def to_csv(
     name_callable : lambda, default: lambda s: s.collection + "/" +  s.name
         Specify a callable that can be used to determine the series name given a
         Stream object.
+
+
+    .. note::
+
+        This method does **not** use the ``arrow`` -accelerated endpoints for faster and more efficient data retrieval.
+
     """
 
     # TODO: allow this at some future point
@@ -630,6 +811,11 @@ def to_table(streamset, agg="mean", name_callable=None):
     name_callable : lambda, default: lambda s: s.collection + "/" +  s.name
         Specify a callable that can be used to determine the column name given a
         Stream object.
+
+
+    .. note::
+
+        This method does **not** use the ``arrow`` -accelerated endpoints for faster and more efficient data retrieval.
 
     """
     try:

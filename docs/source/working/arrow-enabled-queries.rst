@@ -24,9 +24,9 @@ To learn more about these methods, please refer to the :ref:`arrow_ prefixed met
 True Multistream Support
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Until now, there has not been a true multistream query support, our previous api and with the new edits, emulates multistream support with :code:`StreamSet`s and using multithreading.
+Until now, there has not been a true multistream query support, our previous api and with the new edits, emulates multistream support with :code:`StreamSet` s and using multithreading.
 However, this will still only scale to an amount of streams based on the amount of threads that the python threadpool logic can support.
 
-Due to this, raw data queries for :code:`StreamSet`s using our arrow api :code:`StreamSet.filter(start=X, end=Y,).arrow_values()` will now perform true multistream queries.
+Due to this, raw data queries for :code:`StreamSet` s using our arrow api :code:`StreamSet.filter(start=X, end=Y,).arrow_values()` will now perform true multistream queries.
 The platform, instead of the python client, will now quickly grab all the stream data for all streams in your streamset, and then package that back to the python client in an :code:`arrow` table!
 This leads to data fetch speedups on the order of 10-50x based on the amount and kind of streams.

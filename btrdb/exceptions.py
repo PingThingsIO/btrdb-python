@@ -148,7 +148,7 @@ def check_proto_stat(stat):
         if code in BTRDB_ERRORS:
             raise BTRDB_ERRORS[code](stat.msg)
         elif code in BTRDB_SERVER_ERRORS:
-            raise BTRDBServerError(stat.msg)
+            raise BTRDBServerError(str(code) + ": " + stat.msg)
         raise BTrDBError(stat.msg)
 
 

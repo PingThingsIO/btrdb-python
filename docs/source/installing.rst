@@ -1,13 +1,13 @@
 Installing
 ========================
 
-The btrdb package has only a few requirements and is relatively easy to install.
+The :code:`btrdb` package has only a few requirements and is relatively easy to install.
 A number of installation options are available as detailed below.
 
 Installing with pip
 -------------------
 
-We recommend using pip to install btrdb-python on all platforms:
+We recommend using :code:`pip` to install :code:`btrdb-python` on all platforms:
 
 .. code-block:: bash
 
@@ -24,7 +24,7 @@ We recommend installing the :code:`data` extra dependencies (the second option i
     $ pip install "btrdb[all]>=5.30.2" # btrdb with testing, data science and all other optional packages
 
 
-To get a specific version of btrdb-python supply the version number.  The major
+To get a specific version of :code:`btrdb-python` supply the version number.  The major
 version of this library is tied to the major version of the BTrDB database as
 in the 4.X bindings are best used to speak to a 4.X BTrDB database, the 5.X bindings for 5.X platform..
 
@@ -43,4 +43,4 @@ To upgrade using pip:
 Installing with Anaconda
 ------------------------
 
-We recommend installing using ``pip``.
+We recommend installing using :code:`pip`.
