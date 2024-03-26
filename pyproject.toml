@@ -1,6 +1,6 @@
 [project]
 name = "btrdb"
-version = "5.31.0"
+version = "5.32.0"
 authors = [
     {name="PingThingsIO", email="support@pingthings.io"},
 ]
