@@ -6,3 +6,9 @@ sphinx-copybutton
 sphinx-design
 numpydoc
 pydata-sphinx-theme
+pyarrow
+pandas
+polars
+grpcio
+grpcio-tools
+pyyaml
