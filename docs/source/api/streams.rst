@@ -1,6 +1,7 @@
 btrdb.stream
 ==============
 
+
 .. _StreamGeneralDocs:
 .. automodule:: btrdb.stream
 
@@ -8,5 +9,7 @@ btrdb.stream
     :members:
 
 .. _StreamSet API:
-.. autoclass:: StreamSetBase
+.. autoclass:: StreamSet
+    :show-inheritance:
+    :inherited-members:
     :members:

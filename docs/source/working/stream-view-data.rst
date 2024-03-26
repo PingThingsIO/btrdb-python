@@ -45,7 +45,7 @@ you query for all the data using the :code:`Stream.values` method due to the mem
 consumption implied).  Each of these three methods returns a tuple containing a
 RawPoint and the data version number.  The exact timestamp can be obtained from the
 RawPoint.  Keep in mind that all of these methods accept a :code:`version` argument so that
-you can ask for the earliest, latest, or nearest point from a previous version of the stream.
+you can ask for the :code:`earliest`, :code:`latest`, or :code:`nearest` point from a previous version of the stream.
 
 .. code-block:: python
 
@@ -86,7 +86,7 @@ aggregate of all the raw data within a window of width 2^pointwidth
 nanoseconds.
 
 Note that :code:`start` is inclusive, but :code:`end` is exclusive. That is, results
-will be returned for all windows that start in the interval [start, end).
+will be returned for all windows that start in the interval :math:`[start, end)`.
 If end < start+2^pointwidth you will not get any results. If start and
 end are not powers of two, the bottom pointwidth bits will be cleared.
 Each window will contain statistical summaries of the window. Statistical points
@@ -150,37 +150,37 @@ of sample depths are provided below.
 +-------+-------------+---------------------------+-----------------+
 
 As usual when querying data from BTrDB, the :code:`start` time is inclusive
-while the :code:`end` time is exclusive.  Note that if your last window spans
+while the :code:`end` time is exclusive.  **Note**: that if your last window spans
 across the end time then it will not be included in the results.
 
 .. code-block:: python
 
-    start = 1500000000000000000
-    end = 1500000001000000000
+    >>> start = 1500000000000000000
+    >>> end = 1500000001000000000
 
-    # view underlying data for comparison
-    for point, _ in stream.values(start=start, end=end):
-        print(point)
-    >> RawPoint(1500000000000000000, 1.0)
-    >> RawPoint(1500000000100000000, 2.0)
-    >> RawPoint(1500000000200000000, 3.0)
-    >> RawPoint(1500000000300000000, 4.0)
-    >> RawPoint(1500000000400000000, 5.0)
-    >> RawPoint(1500000000500000000, 6.0)
-    >> RawPoint(1500000000600000000, 7.0)
-    >> RawPoint(1500000000700000000, 8.0)
-    >> RawPoint(1500000000800000000, 9.0)
-    >> RawPoint(1500000000900000000, 10.0)
+    >>> # view underlying data for comparison
+    >>> for point, _ in stream.values(start=start, end=end):
+    >>>     print(point)
+    RawPoint(1500000000000000000, 1.0)
+    RawPoint(1500000000100000000, 2.0)
+    RawPoint(1500000000200000000, 3.0)
+    RawPoint(1500000000300000000, 4.0)
+    RawPoint(1500000000400000000, 5.0)
+    RawPoint(1500000000500000000, 6.0)
+    RawPoint(1500000000600000000, 7.0)
+    RawPoint(1500000000700000000, 8.0)
+    RawPoint(1500000000800000000, 9.0)
+    RawPoint(1500000000900000000, 10.0)
 
-    # each window spans 300 milleseconds
-    width = 300000000
+    >>> # each window spans 300 milliseconds
+    >>> width = 300000000
 
-    # request a precision of roughly 1 millesecond
-    depth = 20
+    >>> # request a precision of roughly 1 millisecond
+    >>> depth = 20
 
-    # view windowed data
-    for point, _ in stream.windows(start=start, end=end,
-                                   width=width, depth=depth):
-    >> StatPoint(1500000000000000000, 1.0, 2.0, 3.0, 3, 0.816496580927726)
-    >> StatPoint(1500000000300000000, 4.0, 5.0, 6.0, 3, 0.816496580927726)
-    >> StatPoint(1500000000600000000, 7.0, 8.0, 9.0, 3, 0.816496580927726)
+    >>> # view windowed data
+    >>> for point, _ in stream.windows(start=start, end=end,
+    ...                               width=width, depth=depth):
+     StatPoint(1500000000000000000, 1.0, 2.0, 3.0, 3, 0.816496580927726)
+     StatPoint(1500000000300000000, 4.0, 5.0, 6.0, 3, 0.816496580927726)
+     StatPoint(1500000000600000000, 7.0, 8.0, 9.0, 3, 0.816496580927726)

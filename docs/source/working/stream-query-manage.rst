@@ -75,15 +75,15 @@ detail.
 Querying Metadata
 -----------------
 Finally, you can query for metadata using standard SQL although at the moment, only the
-`streams` table is available.  SQL queries can be submitted using the `query`
-method which accepts both a `stmt` and `params` argument.  The `stmt` should
-contain the SQL you'd like executed with parameter placeholders such as `$1` or
-`$2` as shown below.
+:code:`streams` table is available.  SQL queries can be submitted using the :code:`query`
+method which accepts both a :code:`stmt` and :code:`params` argument.  The :code:`stmt` should
+contain the SQL you'd like executed with parameter placeholders such as :code:`$1` or
+:code:`$2` as shown below.
 
 .. code-block:: python
 
     conn = btrdb.connect()
-    stmt = "select uuid from streams where name = $1 or name = $2"
+    stmt = "SELECT uuid FROM streams WHERE name = $1 OR name = $2"
     params = ["Boston_1", "Boston_2"]
 
     for row in conn.query(stmt, params):

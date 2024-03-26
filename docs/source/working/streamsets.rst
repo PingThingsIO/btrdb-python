@@ -38,8 +38,8 @@ Filtering
 To apply query parameters to your request, you should use the :code:`filter`
 method to supply a :code:`start` or :code:`end` argument.
 
-Keep in mind that :code:`filter` will return a new object so you can keep
-multiple filtered StreamSets in memory while you explore your data.  The
+Keep in mind that :code:`filter` will **return a new object so you can keep
+multiple filtered StreamSets in memory while you explore your data**.  The
 :code:`filter` method may be called multiple times but only the final values
 will be used when it is time to fulfill the request by the server.
 
@@ -83,8 +83,8 @@ re.search to choose the streams to include.
 Retrieving Data
 ----------------
 
-There are two options available when you are ready to process the data from the
-server.  Both options are fully materialized but are organized in different ways
+There are three options available when you are ready to process the data from the
+server.  All options are fully materialized but are organized in different ways
 according to what is more convenient for you.
 
 StreamSet.values()
@@ -129,6 +129,10 @@ consists of 4 streams.
     >>  RawPoint(1500000000700000000, 8.0),
     >>  RawPoint(1500000000800000000, 9.0),
     >>  RawPoint(1500000000900000000, 10.0)]]
+
+
+.. attention::
+
 
 
 StreamSet.rows()

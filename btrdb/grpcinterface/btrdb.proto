@@ -4,7 +4,7 @@ package v5api;
 
 service BTrDB {
   rpc RawValues(RawValuesParams) returns (stream RawValuesResponse);
-  rpc ArrowRawValues(RawValuesParams) returns (stream ArrowRawValuesResponse);
+  rpc ArrowRawValues(ArrowRawValuesParams) returns (stream ArrowRawValuesResponse);
   rpc ArrowMultiValues(ArrowMultiValuesParams) returns (stream ArrowMultiValuesResponse);
   rpc AlignedWindows(AlignedWindowsParams) returns (stream AlignedWindowsResponse);
   rpc ArrowAlignedWindows(AlignedWindowsParams) returns (stream ArrowAlignedWindowsResponse);
@@ -28,6 +28,7 @@ service BTrDB {
   rpc GetMetadataUsage(MetadataUsageParams) returns (MetadataUsageResponse);
   rpc GenerateCSV(GenerateCSVParams) returns (stream GenerateCSVResponse);
   rpc SQLQuery(SQLQueryParams) returns (stream SQLQueryResponse);
+  rpc Subscribe(stream SubscriptionUpdate) returns (stream SubscriptionResp);
   //rpc SetCompactionConfig(SetCompactionConfigParams) returns (SetCompactionConfigResponse);
   //rpc GetCompactionConfig(GetCompactionConfigParams) returns (GetCompactionConfigResponse);
 }
@@ -44,6 +45,13 @@ message RawValuesResponse {
   uint64 versionMinor = 3;
   repeated RawPoint values = 4;
 }
+message ArrowRawValuesParams {
+  bytes uuid = 1;
+  sfixed64 start = 2;
+  sfixed64 end = 3;
+  uint64 versionMajor = 4;
+  bytes templateBytes = 5;
+}
 message ArrowRawValuesResponse {
   Status stat = 1;
   uint64 versionMajor = 2;
@@ -56,6 +64,7 @@ message ArrowMultiValuesParams {
   sfixed64 start = 3;
   sfixed64 end = 4;
   int64 snapPeriodNs = 5;
+  bytes templateBytes = 6;
 }
 message ArrowMultiValuesResponse {
   Status stat = 1;
@@ -425,4 +434,20 @@ message ReducedResolutionRange {
   int64 Start = 1;
   int64 End = 2;
   uint32 Resolution = 3;
+}
+
+enum SubscriptionUpdateOp {
+  ADD_UUIDS = 0;
+  REMOVE_UUIDS = 1;
+}
+
+message SubscriptionUpdate {
+  SubscriptionUpdateOp op = 1;
+  repeated bytes uuid = 2;
+}
+
+message SubscriptionResp {
+  Status stat = 1;
+  bytes uuid = 2;
+  bytes arrowBytes = 3;
 }

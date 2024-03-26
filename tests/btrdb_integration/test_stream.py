@@ -61,6 +61,24 @@ def test_arrow_insert_and_values(
     assert data == fetched_data
 
 
+def test_arrow_values_template_schema(conn, tmp_collection):
+    s = conn.create(new_uuid(), tmp_collection, tags={"name": "s"})
+    t = currently_as_ns()
+    times = [100, 200, 300, 400]
+    values = [1.0, 2.0, 3.0, 4.0]
+    s.insert(list(zip(times, values)))
+    schema = pa.schema(
+        [
+            pa.field("t", pa.int64(), nullable=False),
+            pa.field("v", pa.float32(), nullable=False),
+        ]
+    )
+    expected = pa.Table.from_arrays([pa.array(times), pa.array(values)], schema=schema)
+    fetched_data = s.arrow_values(start=times[0], end=times[-1] + 1, schema=schema)
+    assert expected == fetched_data
+    assert expected.schema.equals(fetched_data.schema)
+
+
 @pytest.mark.parametrize(
     "merge_policy,duplicates_expected",
     [("never", True), ("equal", True), ("retain", False), ("replace", False)],
@@ -103,7 +121,7 @@ def test_arrow_values_table_schema(
     assert single_stream_values_arrow_schema.equals(fetched_data.schema)
 
 
-def test_arrow_values_table_schema(
+def test_arrow_values_table_schema_2(
     conn, tmp_collection, single_stream_values_arrow_schema
 ):
     s = conn.create(new_uuid(), tmp_collection, tags={"name": "s"})
@@ -330,19 +348,21 @@ def test_arrow_empty_values_schema(conn, tmp_collection):
     assert schema.equals(data.schema)
 
 
-@pytest.mark.xfail
 def test_stream_annotation_update(conn, tmp_collection):
-    # XXX marked as expected failure until someone has time to investigate.
     s = conn.create(
-        new_uuid(), tmp_collection, tags={"name": "s"}, annotations={"foo": "bar"}
+        new_uuid(),
+        tmp_collection + "foo/",
+        tags={"name": "s"},
+        annotations={"foo": "bar"},
     )
     annotations1, version1 = s.annotations()
-    assert version1 == 0
+    assert version1 == 1
     assert annotations1["foo"] == "bar"
     s.update(annotations={"foo": "baz"})
     annotations2, version2 = s.annotations()
     assert version2 > version1
     assert annotations2["foo"] == "baz"
     s.update(annotations={}, replace=True)
-    annotations3, _ = s.annotations()
+    annotations3, version3 = s.annotations()
     assert len(annotations3) == 0
+    assert version3 > version2

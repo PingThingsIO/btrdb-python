@@ -5,7 +5,7 @@ BTrDB Explained
 
 **A next-gen timeseries database for dense, streaming telemetry.**
 
-**Problem**: Existing timeseries databases are poorly equipped for a new generation of ultra-fafst sensor telemetry. Specifically, millions of high-precision power meters are to be deployed through the power grid to help analyze and prevent blackouts. Thus, new software must be built to facilitate the storage and analysis of its data.
+**Problem**: Existing timeseries databases are poorly equipped for a new generation of ultra-fast sensor telemetry. Specifically, millions of high-precision power meters are to be deployed through the power grid to help analyze and prevent blackouts. Thus, new software must be built to facilitate the storage and analysis of its data.
 
 **Baseline**: We need 1.4M inserts/second and 5x that in reads if we are to support 1000 `micro-synchrophasors`_ per server node. No timeseries database can do this.
 

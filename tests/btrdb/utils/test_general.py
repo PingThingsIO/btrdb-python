@@ -56,6 +56,36 @@ class TestPointwidth(object):
         """
         assert pointwidth.from_nanoseconds(nsec) == expected
 
+    @pytest.mark.parametrize(
+        "pw_time_range, expected",
+        [
+            (
+                (52, 1560127027000000000, 1702702800000000000),
+                (1558245471070191616, 1697857059518676992, 32),
+            ),
+            (
+                (48, 1560127027000000000, 1702702800000000000),
+                (1559934320930455552, 1702360659146047488, 507),
+            ),
+            (
+                (44, 1456876800000000000, 1464652800000000000),
+                (1456861702896222208, 1464619856941809664, 442),
+            ),
+            (
+                (38, 1456876800000000000, 1464652800000000000),
+                (1456876546303197184, 1464652292534829056, 28289),
+            ),
+            (
+                (32, 1456876800000000000, 1464652800000000000),
+                (1456876799706267648, 1464652795046002688, 1810491),
+            ),
+        ],
+    )
+    def test_for_aligned_windows(self, pw_time_range, expected):
+        pw, start, end = pw_time_range
+        result = pointwidth(pw).for_aligned_windows(start, end)
+        assert result == expected
+
     def test_time_conversions(self):
         """
         Test standard pointwidth time conversions
@@ -114,3 +144,19 @@ class TestPointwidth(object):
         Test incrementing a pointwidth
         """
         assert pointwidth(23).incr() == 24
+
+    @pytest.mark.parametrize(
+        "pw, expected",
+        [
+            (54, timedelta(days=208, seconds=43198, microseconds=509482)),
+            (51, timedelta(days=26, seconds=5399, microseconds=813685)),
+            (49, timedelta(days=6, seconds=44549, microseconds=953421)),
+            (46, timedelta(seconds=70368, microseconds=744178)),
+            (43, timedelta(seconds=8796, microseconds=93022)),
+            (39, timedelta(seconds=549, microseconds=755814)),
+            (34, timedelta(seconds=17, microseconds=179869)),
+            (30, timedelta(seconds=1, microseconds=73742)),
+        ],
+    )
+    def test_to_timedelta(self, pw, expected):
+        assert pointwidth(pw).to_timedelta() == expected

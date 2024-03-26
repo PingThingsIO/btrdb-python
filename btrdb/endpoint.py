@@ -28,7 +28,7 @@ import io
 import typing
 import uuid
 
-from btrdb.exceptions import BTrDBError, check_proto_stat, error_handler
+from btrdb.exceptions import check_proto_stat, error_handler
 from btrdb.grpcinterface import btrdb_pb2, btrdb_pb2_grpc
 from btrdb.point import RawPoint
 from btrdb.utils.general import unpack_stream_descriptor
@@ -37,6 +37,8 @@ try:
     import pyarrow as pa
 except ImportError:
     pa = None
+
+_ARROW_IMPORT_MSG = """Package `pyarrow` required, please pip install."""
 
 
 class Endpoint(object):
@@ -55,9 +57,21 @@ class Endpoint(object):
             yield result.values, result.versionMajor
 
     @error_handler
-    def arrowRawValues(self, uu, start, end, version=0):
-        params = btrdb_pb2.RawValuesParams(
-            uuid=uu.bytes, start=start, end=end, versionMajor=version
+    def arrowRawValues(self, uu, start, end, version=0, schema=None):
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
+        templateBytes = b""
+        if schema is not None:
+            byte_io = io.BytesIO()
+            with pa.ipc.new_stream(sink=byte_io, schema=schema) as _:
+                pass
+            templateBytes = byte_io.getvalue()
+        params = btrdb_pb2.ArrowRawValuesParams(
+            uuid=uu.bytes,
+            start=start,
+            end=end,
+            versionMajor=version,
+            templateBytes=templateBytes,
         )
         for result in self.stub.ArrowRawValues(params):
             check_proto_stat(result.stat)
@@ -65,13 +79,24 @@ class Endpoint(object):
                 yield reader.read_all(), result.versionMajor
 
     @error_handler
-    def arrowMultiValues(self, uu_list, start, end, version_list, snap_periodNS):
+    def arrowMultiValues(
+        self, uu_list, start, end, version_list, snap_periodNS=None, schema=None
+    ):
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
+        templateBytes = b""
+        if schema is not None:
+            byte_io = io.BytesIO()
+            with pa.ipc.new_stream(sink=byte_io, schema=schema) as _:
+                pass
+            templateBytes = byte_io.getvalue()
         params = btrdb_pb2.ArrowMultiValuesParams(
             uuid=[uu.bytes for uu in uu_list],
             start=start,
             end=end,
             versionMajor=[ver for ver in version_list],
             snapPeriodNs=int(snap_periodNS),
+            templateBytes=templateBytes,
         )
         for result in self.stub.ArrowMultiValues(params):
             check_proto_stat(result.stat)
@@ -80,6 +105,8 @@ class Endpoint(object):
 
     @error_handler
     def arrowInsertValues(self, uu: uuid.UUID, values: pa.Table, policy: str):
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
         policy_map = {
             "never": btrdb_pb2.MergePolicy.NEVER,
             "equal": btrdb_pb2.MergePolicy.EQUAL,
@@ -115,6 +142,8 @@ class Endpoint(object):
 
     @error_handler
     def arrowAlignedWindows(self, uu, start, end, pointwidth, version=0):
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
         params = btrdb_pb2.AlignedWindowsParams(
             uuid=uu.bytes,
             start=start,
@@ -143,6 +172,8 @@ class Endpoint(object):
 
     @error_handler
     def arrowWindows(self, uu, start, end, width, depth, version=0):
+        if pa is None:
+            raise ImportError(_ARROW_IMPORT_MSG)
         params = btrdb_pb2.WindowsParams(
             uuid=uu.bytes,
             start=start,
@@ -386,3 +417,25 @@ class Endpoint(object):
         for page in self.stub.SQLQuery(request):
             check_proto_stat(page.stat)
             yield page.SQLQueryRow
+
+    @error_handler
+    def subscribe(self, update_queue):
+        def updates():
+            while True:
+                update = update_queue.get()
+                if update is None:
+                    return
+                (to_add, to_remove) = update
+                if len(to_add) != 0:
+                    yield btrdb_pb2.SubscriptionUpdate(
+                        op=0, uuid=[uu.bytes for uu in to_add]
+                    )
+                if len(to_remove) != 0:
+                    yield btrdb_pb2.SubscriptionUpdate(
+                        op=1, uuid=[uu.bytes for uu in to_remove]
+                    )
+
+        for response in self.stub.Subscribe(updates()):
+            check_proto_stat(response.stat)
+            with pa.ipc.open_stream(response.arrowBytes) as reader:
+                yield uuid.UUID(bytes=response.uuid), reader.read_all()

@@ -11,7 +11,7 @@ of their behavior which will allow you to use them effectively.
 
 .. note::
 
-	Data requests are fully materialized at this time.  A future release will include the option to process data using generators to save on memory usage.
+    Data requests are fully materialized at this time.  A future release will include the option to process data using generators to save on memory usage.
 
 
 BTrDB Server
@@ -38,48 +38,46 @@ value within the stream.
 
 .. code-block:: python
 
-    # view time and value of a single point in the stream
+    >>> # view time and value of a single point in the stream
+    >>> point.time
+    1547241923338098176
 
-    point.time
-    >>> 1547241923338098176
-
-    point.value
-    >>> 120.5
+    >>> point.value
+    120.5
 
 StatPoint
 ^^^^^^^^^^^^
 The StatPoint provides statistics about multiple points and gives
-aggregation values such as `min`, `max`, `mean`, and `stddev` (standard deviation).
+aggregation values such as :code:`min`, :code:`max`, :code:`mean`, :code:`count` and :code:`stddev` (standard deviation).
 This is most useful when you don't need to touch every individual value such as
 when you only need the count of the values over a range of time.
 
 These statistical queries execute in time proportional to the number of
 results, not the number of underlying points (i.e logarithmic time) and so you
 can attain valuable data in a fraction of the time when compared with retrieving
-all of the individual values.  Due to the internal data structures, BTrDB does
+all of the individual values.  Due to the internal data structures, :code:`BTrDB` does
 not need to read the underlying points to return these statistics!
 
 .. code-block:: python
 
-    # view aggregate values for points in a stream
+    >>> # view aggregate values for points in a stream
+    >>> point.time
+    1547241923338098176
 
-    point.time
-    >>> 1547241923338098176
+    >>>point.min
+    42.1
 
-    point.min
-    >>> 42.1
+    >>> point.mean
+    78.477
 
-    point.mean
-    >>> 78.477
+    >>> point.max
+    122.4
 
-    point.max
-    >>> 122.4
+    >>> point.count
+    18600
 
-    point.count
-    >>> 18600
-
-    point.stddev
-    >>> 3.4
+    >>> point.stddev
+    3.4
 
 
 Tabular Data
@@ -91,52 +89,55 @@ Refer to the :ref:`arrow enabled queries page <Arrow Page>` and the :ref:`API do
 
 Streams
 ------------
-Streams represent a single series of time/value pairs.  As such, the database
+:code:`Stream` s represent a single series of time/value pairs.  As such, the database
 can hold an almost unlimited amount of individual streams.  Each stream has a
 :code:`collection` which is similar to a "path" or grouping for multiple streams.  Each
 steam will also have a :code:`name` as well as a :code:`uuid` which is guaranteed to be unique
 across streams.
 
-BTrDB data is versioned such that changes to a given stream (time series) will
+:code:`BTrDB` data is versioned such that changes to a given stream (time series) will
 result in a new version for the stream.  In this manner, you can pin your interactions to a
 specific version ensuring the values do not change over the course of your
-interactions.  If you want to work with the most recent version/data then
-specify a version of zero (the default).
+interactions.
+
+.. note::
+
+    If you want to work with the most recent version/data then specify a version of :code:`0` (the default).
 
 Each stream has a number of attributes and methods available and these are documented
-within the API section of this publication.  But the most common interactions
-by users are to access the UUID, tags, annotations, version, and underlying data.
+within the :ref:`API Reference <API REF>` section of this publication.  But the most common interactions
+by users are to access the :code:`UUID`, :code:`tags`, :code:`annotations`, :code:`version`, and underlying data.
 
-Each stream uses a UUID as its unique identifier which can also be used when querying
-for streams.  Metadata is provided by tags and annotations which are both provided
-as dictionaries of data.  Tags are used internally and have very specific keys
-while annotations are more free-form and can be used by you to store your own
+Each stream uses a :code:`UUID` as its unique identifier which can also be used when querying
+for streams.  Metadata is provided by :code:`tags` and :code:`annotations` which are both provided
+as dictionaries of data.  :code:`tags` are used internally and have very specific keys
+while :code:`annotations` are more free-form and can be used by you to store your own
 metadata.
 
 .. code-block:: python
 
-    # retrieve stream's UUID
-    stream.uuid
-    >>> UUID("0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a")
+    >>> # retrieve stream's UUID
+    >>> stream.uuid
+    UUID("0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a")
 
-    # retrieve stream's current version
-    stream.version()
-    >>> 244
+    >>> # retrieve stream's current version
+    >>> stream.version()
+    244
 
-    # retrieve stream tags
-    stream.tags()
-    >>> {'name': 'L1MAG', 'unit': 'volts', 'ingress': ''}
+    >>> # retrieve stream tags
+    >>> stream.tags()
+    {'name': 'L1MAG', 'unit': 'volts', 'ingress': ''}
 
-    # retrieve stream annotations
-    stream.annotations()
-    >>> {'poc': 'Salvatore McFesterson', 'region': 'northwest', 'state': 'WA'}
+    >>> # retrieve stream annotations
+    >>> stream.annotations()
+    ({'poc': 'Salvatore McFesterson', 'region': 'northwest', 'state': 'WA'}, 23)
 
-    # loop through points in the stream
-    for point, _ in stream.values(end=1547241923338098176, version=133):
-      	print(point)
-    >>> RawPoint(1500000000100000000, 2.4)
-    >>> RawPoint(1500000000200000000, 2.8)
-    >>> RawPoint(1500000000300000000, 3.6)
+    >>> # loop through points in the stream
+    >>> for point, _ in stream.values(end=1547241923338098176, version=133):
+    >>>     print(point)
+    RawPoint(1500000000100000000, 2.4)
+    RawPoint(1500000000200000000, 2.8)
+    RawPoint(1500000000300000000, 3.6)
     ...
 
 
@@ -144,8 +145,8 @@ StreamSets
 ------------
 
 Often you will want to query and work with multiple streams instead of just an
-individual stream - StreamSets allow you to do this effectively.  It is a light
-wrapper around a list of Stream objects with convenience methods provided to
+individual stream - :code:`StreamSets` allow you to do this effectively.  It is a light
+wrapper around a list of :code:`Stream` objects with convenience methods provided to
 help you work with multiple streams of data.
 
 As an example, you can filter the stream data with a single method call and then
@@ -153,17 +154,45 @@ easily transform the data into other data types such as a pandas DataFrame or to
 disk as a CSV file.  See the examples below for a quick sample and then visit
 our API docs to see the full list of features provided to you.
 
+.. note::
+
+    :code:`StreamSet` methods that filter and operate on the :code:`StreamSet` object (like :code:`StreamSet.filter` ) return new copies of the :code:`StreamSet` itself rather than modifying in place. Similar to how most :code:`pandas.DataFrame` methods return a new :code:`DataFrame` object. This lets you compose multiple functions in a single call, which can improve readability, but can be tricky if you are not expecting this behavior.
+
+Lets explore a common use-case, filtering a streamset.
+
 .. code-block:: python
 
-    # establish database connection and query for streams by UUID
-    db = connect()
-    uuid_list = ["0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a", ...]
-    streams = db.streams(*uuid_list)
+    >>> # create a streamset and apply a few filters
+    >>> streamset = btrdb.stream.StreamSet(list_of_streams)
+    >>> print(f"Total streams: {len(streamset)}")
+    Total streams: 89
 
-    streams.filter(start=1500000000000000000).to_csv("data.csv")
+    >>> streamset.filter(units="Volts")
+    >>> print(f"Total streams: {len(streamset)}")
+    Total streams: 89
 
-    streams.filter(start=1500000000000000000).to_dataframe()
-    >>                    time  NW/stream0  NW/stream1
+    >>> filtered_streamset = streamset.filter(units="Volts")
+    >>> print(f"Total streams: {len(filtered_streamset)}")
+    Total streams: 23
+
+    >>> multiple_filters_streamset = (streamset.filter(unit="Volts")
+    >>>                                 .filter(name="Sensor 1")
+    >>>                                 .filter(annotations={"phase":"A"})
+    >>>                              )
+    >>> print(f"Total streams: {len(multiple_filters_streamset)}")
+    Total streams: 1
+
+.. code-block:: python
+
+    >>> # establish database connection and query for streams by UUID
+    >>> db = connect()
+    >>> uuid_list = ["0d22a53b-e2ef-4e0a-ab89-b2d48fb2592a", ...]
+    >>> streams = db.streams(*uuid_list)
+
+    >>> streams.filter(start=1500000000000000000).to_csv("data.csv")
+
+    >>> streams.filter(start=1500000000000000000).to_dataframe()
+                  time              NW/stream0  NW/stream1
         0  1500000000000000000         NaN         1.0
         1  1500000000100000000         2.0         NaN
         2  1500000000200000000         NaN         3.0

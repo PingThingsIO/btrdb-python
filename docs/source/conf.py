@@ -27,7 +27,7 @@ from btrdb.version import get_version
 # -- Project information -----------------------------------------------------
 
 project = "btrdb"
-copyright = "2023, Ping Things, Inc."
+copyright = "2024, Ping Things, Inc."
 author = "PingThingsIO"
 
 # The short X.Y version
@@ -48,10 +48,18 @@ release = "v" + get_version()
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
+    "sphinx.ext.autosummary",
+    # 'sphinx.ext.inheritance_diagram',
+    # 'sphinx.ext.intersphinx',
+    "sphinx.ext.ifconfig",
+    # 'IPython.sphinxext.ipython_console_highlighting',
+    # 'IPython.sphinxext.ipython_directive',
     "sphinx.ext.todo",
     "sphinx.ext.githubpages",
-    "sphinx.ext.intersphinx",
+    # "sphinx.ext.intersphinx",
     "numpydoc",
+    "sphinx_copybutton",
+    "sphinx_design",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -96,16 +104,19 @@ html_theme = "pydata_sphinx_theme"
 # documentation.
 #
 html_theme_options = {
-    "show_powered_by": False,
-    "github_user": "PingThingsIO",
-    "github_repo": "btrdb-python",
-    "travis_button": False,
-    "github_banner": False,
-    "show_related": False,
-    "note_bg": "#FFF59C",
-    "description": "A midweight library to converse with the BTrDB database.",
-    "extra_nav_links": {"btrdb": "http://btrdb-python.readthedocs.io"},
-    "show_relbars": True,
+    # "show_powered_by": False,
+    # "github_user": "PingThingsIO",
+    # "github_repo": "btrdb-python",
+    # "travis_button": False,
+    # "github_banner": False,
+    # "show_related": False,
+    # "note_bg": "#FFF59C",
+    # "description": "A midweight library to converse with the BTrDB database.",
+    # "extra_nav_links": {"btrdb": "http://btrdb-python.readthedocs.io"},
+    # "show_relbars": True,
+    "show_toc_level": 2,
+    "navigation_depth": 4,  # Adjust the depth of the sidebar TOC
+    "show_nav_level": 2,  # Initially shown levels of the TOC
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,

@@ -55,7 +55,7 @@ def currently_as_ns():
 
 def ns_to_datetime(ns):
     """
-    Converts nanoseconds to a datetime object (UTC)
+    Converts nanoseconds to a naive datetime object (UTC+0)
 
     Parameters
     ----------
@@ -178,7 +178,7 @@ def ns_delta(
     days=0, hours=0, minutes=0, seconds=0, milliseconds=0, microseconds=0, nanoseconds=0
 ):
     """
-    Similar to `timedelta`, ns_delta represents a span of time but as
+    Similar to ``timedelta``, ``ns_delta`` represents a span of time but as
     the total number of nanoseconds.
 
     Parameters
@@ -202,6 +202,14 @@ def ns_delta(
     -------
     amount of time in nanoseconds : int
 
+
+    Examples
+    --------
+    1 minute time delta should be 60 billion nanoseconds
+
+    >>> deltaT = ns_delta(minutes=1)
+    >>> deltaT == 1 * 60 * 10**9 # 1 minute * 60 seconds * 1billion nanoseconds / second
+    True
     """
     MICROSECOND = 1000
     MILLISECOND = MICROSECOND * 1000

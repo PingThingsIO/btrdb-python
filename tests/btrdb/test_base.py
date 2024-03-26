@@ -16,11 +16,11 @@ Testing package for the btrdb database library.
 ##########################################################################
 
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from btrdb import BTRDB_API_KEY, BTRDB_ENDPOINTS, __version__, connect
+from btrdb import BTRDB_API_KEY, BTRDB_ENDPOINTS, Endpoint, __version__, connect
 from btrdb.exceptions import ConnectionError
 
 ##########################################################################
@@ -81,21 +81,34 @@ class TestConnect(object):
         connect()
         mock_connect.assert_called_once_with(endpoints="c", apikey="d")
 
+    # @patch("btrdb.utils.credentials.credentials_by_env")
+    @patch("btrdb.utils.credentials.credentials_by_env")
     @patch("btrdb.utils.credentials.credentials_by_profile")
     @patch("btrdb.Connection")
-    def test_connect_with_env(self, mock_conn, mock_credentials_by_profile):
+    def test_connect_with_env(
+        self, mock_conn, mock_credentials_by_profile, mock_credentials_by_env
+    ):
         """
         Assert connect uses ENV variables
         """
-        mock_credentials_by_profile.return_value = {}
-        address = "127.0.0.1:4410"
-        os.environ[BTRDB_ENDPOINTS] = address
+        with patch(
+            "btrdb.endpoint.Endpoint.info", return_value=Mock(Endpoint)
+        ) as mock_ep_info:
+            mock_ep_info.return_value = MagicMock()
+            mock_credentials_by_profile.return_value = {}
+            address = "127.0.0.1:4410"
+            mock_credentials_by_env.return_value = {"endpoints": address}
+            os.environ[BTRDB_ENDPOINTS] = address
 
-        btrdb = connect()
-        mock_conn.assert_called_once_with(address, apikey=None)
-        mock_conn.reset_mock()
+            btrdb = connect()
+            mock_conn.assert_called_once_with(address, apikey=None)
+            mock_conn.reset_mock()
 
-        apikey = "abcd"
-        os.environ[BTRDB_API_KEY] = apikey
-        btrdb = connect()
-        mock_conn.assert_called_once_with(address, apikey=apikey)
+            apikey = "abcd"
+            os.environ[BTRDB_API_KEY] = apikey
+            mock_credentials_by_env.return_value = {
+                "endpoints": address,
+                "apikey": apikey,
+            }
+            btrdb = connect()
+            mock_conn.assert_called_once_with(address, apikey=apikey)
