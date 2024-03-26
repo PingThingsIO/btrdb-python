@@ -4,7 +4,7 @@
 
 ### What's Changed
 - Initial docstring overhaul and a new test for better documentation and test coverage. by @JustinGilmer in #82
-- Test new join functionality for improved data manipulation. by @JustinGilmer in #80
+- Test new join functionality for improved data loading for windowed queries. by @JustinGilmer in #80
 - Improve `arrow_to_dataframe` function for handling large amounts of columns, enhancing performance and usability. by @Jefflinf in #73
 - Expand testing to include Python 3.11, ensuring compatibility and stability. by @JustinGilmer in #74
 - Update exception handling to better support `RpcErrors`, improving error management and debugging. by @JustinGilmer in #72
@@ -20,15 +20,19 @@
 ### Deprecated
 - FutureWarning for `streams_in_collection` to return `StreamSet` in the future, preparing users for upcoming API changes. by @Jefflinf in #60
 
-**Full Changelog**: [GitHub compare view](https://github.com/PingThingsIO/btrdb-python/compare/v5.31.1...v5.32.0)
+**Full Changelog**: [GitHub compare view](https://github.com/PingThingsIO/btrdb-python/compare/v5.31.0...v5.32.0)
 
-
-## 5.31.1
-### What's Changed
-* Sort tables by time by default for any `pyarrow` tables. by @justinGilmer in
-* Fix deprecation warnings for pip installations. by @jleifnf in
 
 ## 5.31.0
+## What's Changed
+* Release v5.30.2 by @youngale-pingthings in https://github.com/PingThingsIO/btrdb-python/pull/42
+* Have release script update pyproject.toml file by @youngale-pingthings in https://github.com/PingThingsIO/btrdb-python/pull/48
+* Provide option to sort the arrow tables by @justinGilmer in https://github.com/PingThingsIO/btrdb-python/pull/47
+* [sc-25841] Remove 4MB limit for gRPC message payloads by @justinGilmer in https://github.com/PingThingsIO/btrdb-python/pull/49
+* Update documentation for arrow methods by @justinGilmer in https://github.com/PingThingsIO/btrdb-python/pull/50
+* Update from staging by @justinGilmer in https://github.com/PingThingsIO/btrdb-python/pull/54
+* Sort tables by time by default for any `pyarrow` tables. by @justinGilmer in
+* Fix deprecation warnings for pip installations. by @jleifnf in
 
 ## 5.30.2
 ### What's Changed
