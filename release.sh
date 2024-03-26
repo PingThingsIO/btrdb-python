@@ -35,7 +35,7 @@ fi
 
 echo "Setting version to v$1.$2.$3"
 
-VERSION_CODE="__version_info__ = { 'major': $1, 'minor': $2, 'micro': $3, 'releaselevel': 'final'}"
+VERSION_CODE="__version_info__ = { \"major\": $1, \"minor\": $2, \"micro\": $3, \"releaselevel\": \"final\"}"
 sed -i.bak "s/^__version_info__.*$/${VERSION_CODE}/g" btrdb/version.py
 sed -i.bak "s/^version.*$/version\ = \"$1.$2.$3\"/g" pyproject.toml
 
