@@ -54,8 +54,8 @@ def test_streamset_arrow_values(conn, tmp_collection):
     s2.insert(list(zip(t2, d2)))
     ss = btrdb.stream.StreamSet([s1, s2]).filter(start=100, end=121)
     expected_times = [100, 101, 105, 106, 110, 114, 115, 119, 120]
-    expected_col1 = [0.0, np.NaN, 1.0, np.NaN, 2.0, np.NaN, 3.0, np.NaN, 4.0]
-    expected_col2 = [np.NaN, 5.0, np.NaN, 6.0, 7.0, 8.0, np.NaN, 9.0, np.NaN]
+    expected_col1 = [0.0, np.nan, 1.0, np.nan, 2.0, np.nan, 3.0, np.nan, 4.0]
+    expected_col2 = [np.nan, 5.0, np.nan, 6.0, 7.0, 8.0, np.nan, 9.0, np.nan]
     expected_schema = pa.schema(
         [
             pa.field("time", pa.timestamp("ns", tz="UTC"), nullable=False),
@@ -65,8 +65,8 @@ def test_streamset_arrow_values(conn, tmp_collection):
     )
     values = ss.arrow_values()
     times = [t.value for t in values["time"]]
-    col1 = [np.NaN if isnan(v.as_py()) else v.as_py() for v in values[str(s1.uuid)]]
-    col2 = [np.NaN if isnan(v.as_py()) else v.as_py() for v in values[str(s2.uuid)]]
+    col1 = [np.nan if isnan(v.as_py()) else v.as_py() for v in values[str(s1.uuid)]]
+    col2 = [np.nan if isnan(v.as_py()) else v.as_py() for v in values[str(s2.uuid)]]
     assert times == expected_times
     assert col1 == expected_col1
     assert col2 == expected_col2
@@ -91,12 +91,12 @@ def test_streamset_template_schema(conn, tmp_collection):
     )
     ss = btrdb.stream.StreamSet([s1, s2]).filter(start=100, end=121, schema=schema)
     expected_times = [100, 101, 105, 106, 110, 114, 115, 119, 120]
-    expected_col1 = [0.0, np.NaN, 1.0, np.NaN, 2.0, np.NaN, 3.0, np.NaN, 4.0]
-    expected_col2 = [np.NaN, 5.0, np.NaN, 6.0, 7.0, 8.0, np.NaN, 9.0, np.NaN]
+    expected_col1 = [0.0, np.nan, 1.0, np.nan, 2.0, np.nan, 3.0, np.nan, 4.0]
+    expected_col2 = [np.nan, 5.0, np.nan, 6.0, 7.0, 8.0, np.nan, 9.0, np.nan]
     values = ss.arrow_values()
     times = [t.value for t in values["t"]]
-    col1 = [np.NaN if isnan(v.as_py()) else v.as_py() for v in values["a"]]
-    col2 = [np.NaN if isnan(v.as_py()) else v.as_py() for v in values["b"]]
+    col1 = [np.nan if isnan(v.as_py()) else v.as_py() for v in values["a"]]
+    col2 = [np.nan if isnan(v.as_py()) else v.as_py() for v in values["b"]]
     assert times == expected_times
     assert col1 == expected_col1
     assert col2 == expected_col2
@@ -292,8 +292,8 @@ def test_streamset_to_dataframe(conn, tmp_collection):
     ss = btrdb.stream.StreamSet([s1, s2]).filter(start=100, end=121)
     values = ss.to_dataframe()
     expected_times = [100, 101, 105, 106, 110, 114, 115, 119, 120]
-    expected_col1 = [0.0, np.NaN, 1.0, np.NaN, 2.0, np.NaN, 3.0, np.NaN, 4.0]
-    expected_col2 = [np.NaN, 5.0, np.NaN, 6.0, 7.0, 8.0, np.NaN, 9.0, np.NaN]
+    expected_col1 = [0.0, np.nan, 1.0, np.nan, 2.0, np.nan, 3.0, np.nan, 4.0]
+    expected_col2 = [np.nan, 5.0, np.nan, 6.0, 7.0, 8.0, np.nan, 9.0, np.nan]
     expected_dat = {
         tmp_collection + "/s1": expected_col1,
         tmp_collection + "/s2": expected_col2,
@@ -318,10 +318,10 @@ def test_arrow_streamset_to_dataframe(conn, tmp_collection):
         pa.scalar(v, type=pa.timestamp("ns", tz="UTC")).as_py() for v in expected_times
     ]
     expected_col1 = pa.array(
-        [0.0, np.NaN, 1.0, np.NaN, 2.0, np.NaN, 3.0, np.NaN, 4.0], mask=[False] * 9
+        [0.0, np.nan, 1.0, np.nan, 2.0, np.nan, 3.0, np.nan, 4.0], mask=[False] * 9
     )
     expected_col2 = pa.array(
-        [np.NaN, 5.0, np.NaN, 6.0, 7.0, 8.0, np.NaN, 9.0, np.NaN], mask=[False] * 9
+        [np.nan, 5.0, np.nan, 6.0, 7.0, 8.0, np.nan, 9.0, np.nan], mask=[False] * 9
     )
     expected_dat = {
         "time": expected_times,
@@ -361,8 +361,8 @@ def test_arrow_streamset_to_polars(conn, tmp_collection):
     expected_times = [
         pa.scalar(v, type=pa.timestamp("ns", tz="UTC")).as_py() for v in expected_times
     ]
-    expected_col1 = [0.0, np.NaN, 1.0, np.NaN, 2.0, np.NaN, 3.0, np.NaN, 4.0]
-    expected_col2 = [np.NaN, 5.0, np.NaN, 6.0, 7.0, 8.0, np.NaN, 9.0, np.NaN]
+    expected_col1 = [0.0, np.nan, 1.0, np.nan, 2.0, np.nan, 3.0, np.nan, 4.0]
+    expected_col2 = [np.nan, 5.0, np.nan, 6.0, 7.0, 8.0, np.nan, 9.0, np.nan]
     expected_dat = {
         tmp_collection + "/s1": expected_col1,
         tmp_collection + "/s2": expected_col2,
@@ -395,8 +395,8 @@ def test_streamset_arrow_polars_vs_old_to_polars(conn, tmp_collection, name_call
     expected_times = [
         pa.scalar(v, type=pa.timestamp("ns", tz="UTC")).as_py() for v in expected_times
     ]
-    expected_col1 = [0.0, np.NaN, 1.0, np.NaN, 2.0, np.NaN, 3.0, np.NaN, 4.0]
-    expected_col2 = [np.NaN, 5.0, np.NaN, 6.0, 7.0, 8.0, np.NaN, 9.0, np.NaN]
+    expected_col1 = [0.0, np.nan, 1.0, np.nan, 2.0, np.nan, 3.0, np.nan, 4.0]
+    expected_col2 = [np.nan, 5.0, np.nan, 6.0, 7.0, 8.0, np.nan, 9.0, np.nan]
     expected_dat = {
         tmp_collection + "/s1": expected_col1,
         tmp_collection + "/s2": expected_col2,
@@ -509,8 +509,8 @@ def test_timesnap_backward_extends_range(conn, tmp_collection):
     values = ss.arrow_values()
     assert [1 * sec, 2 * sec] == [t.value for t in values["time"]]
     assert [0.5, 2.0] == [v.as_py() for v in values[str(s1.uuid)]]
-    assert [np.NaN, 2.0] == [
-        np.NaN if isnan(v.as_py()) else v.as_py() for v in values[str(s2.uuid)]
+    assert [np.nan, 2.0] == [
+        np.nan if isnan(v.as_py()) else v.as_py() for v in values[str(s2.uuid)]
     ]
     assert [1.0, 2.0] == [v.as_py() for v in values[str(s3.uuid)]]
 
