@@ -6,6 +6,7 @@ import pytest
 
 import btrdb
 from btrdb.exceptions import BTrDBError
+from btrdb.utils.credentials import credentials_by_profile
 
 
 @pytest.mark.skipif(
@@ -20,9 +21,13 @@ class TestConnection:
     def test_incorrect_connect(
         self,
     ):
+        env_name = os.getenv("BTRDB_INTEGRATION_TEST_PROFILE")
+        creds = credentials_by_profile(env_name)
+        conn_str = creds["endpoints"]
+        print(f"{creds = }")
         err_msg = r"""Could not connect to the database, error message: <_InactiveRpcError of RPC that terminated with:\n\tstatus = StatusCode.UNAUTHENTICATED\n\tdetails = "invalid api key"\n"""
         with pytest.raises(BTrDBError, match=err_msg):
-            conn = btrdb.connect(conn_str="127.0.0.1:4410", apikey="BOGUS_KEY")
+            conn = btrdb.connect(conn_str=conn_str, apikey="BOGUS_KEY")
 
     @pytest.mark.xfail(
         reason="Should return BTrDBError, but returns GRPCError instead, FIXME"
