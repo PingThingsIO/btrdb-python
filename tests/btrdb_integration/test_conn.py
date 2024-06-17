@@ -24,7 +24,6 @@ class TestConnection:
         env_name = os.getenv("BTRDB_INTEGRATION_TEST_PROFILE")
         creds = credentials_by_profile(env_name)
         conn_str = creds["endpoints"]
-        print(f"{creds = }")
         err_msg = r"""Could not connect to the database, error message: <_InactiveRpcError of RPC that terminated with:\n\tstatus = StatusCode.UNAUTHENTICATED\n\tdetails = "invalid api key"\n"""
         with pytest.raises(BTrDBError, match=err_msg):
             conn = btrdb.connect(conn_str=conn_str, apikey="BOGUS_KEY")
