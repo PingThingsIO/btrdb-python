@@ -15,9 +15,9 @@ Connection related objects for the BTrDB library
 ## Imports
 ##########################################################################
 
+import importlib.metadata
 import json
 import logging
-import importlib.metadata
 import os
 import re
 import uuid as uuidlib
@@ -132,7 +132,12 @@ class Connection(object):
                         if client_call_details.metadata is not None:
                             metadata = list(client_call_details.metadata)
                         metadata.append(("authorization", "Bearer " + apikey))
-                        metadata.append(("x-api-client", "btrdbpy-" + importlib.metadata.version("btrdb")))
+                        metadata.append(
+                            (
+                                "x-api-client",
+                                "btrdbpy-" + importlib.metadata.version("btrdb"),
+                            )
+                        )
                         self.method = client_call_details.method
                         self.timeout = client_call_details.timeout
                         self.credentials = client_call_details.credentials
