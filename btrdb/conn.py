@@ -15,6 +15,7 @@ Connection related objects for the BTrDB library
 ## Imports
 ##########################################################################
 
+import importlib.metadata
 import json
 import logging
 import os
@@ -65,6 +66,11 @@ class Connection(object):
         The ``btrdb.connect`` method is a helper function to make connecting to the platform easier
             usually that will be sufficient for most users.
         """
+        warn(
+            "This API is deprecated in favor of the pingthings_api, refer to your hub landing page for further documentation.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         addrport = addrportstr.split(":", 2)
         # 100MB size limit ~ 2500 streams for 5000 points with each point being 64bit
         # 500MB size limit ~ 13K streams for 5000 points
@@ -126,6 +132,12 @@ class Connection(object):
                         if client_call_details.metadata is not None:
                             metadata = list(client_call_details.metadata)
                         metadata.append(("authorization", "Bearer " + apikey))
+                        metadata.append(
+                            (
+                                "x-api-client",
+                                "btrdbpy-" + importlib.metadata.version("btrdb"),
+                            )
+                        )
                         self.method = client_call_details.method
                         self.timeout = client_call_details.timeout
                         self.credentials = client_call_details.credentials
