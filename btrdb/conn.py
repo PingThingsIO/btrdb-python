@@ -132,10 +132,15 @@ class Connection(object):
                         if client_call_details.metadata is not None:
                             metadata = list(client_call_details.metadata)
                         metadata.append(("authorization", "Bearer " + apikey))
+                        version = "unknown"
+                        try:
+                            version = importlib.metadata.version("btrdb")
+                        except:
+                            pass
                         metadata.append(
                             (
                                 "x-api-client",
-                                "btrdbpy-" + importlib.metadata.version("btrdb"),
+                                "btrdbpy-" + version,
                             )
                         )
                         self.method = client_call_details.method
