@@ -24,6 +24,7 @@ import uuid as uuidlib
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Tuple, Union
 from warnings import warn
+import warnings
 
 import certifi
 import grpc
@@ -66,10 +67,11 @@ class Connection(object):
         The ``btrdb.connect`` method is a helper function to make connecting to the platform easier
             usually that will be sufficient for most users.
         """
+        #4 Is a magic number to make sure the error propagates where btrdb.connect is called.
         warn(
             "This API is deprecated in favor of the pingthings_api, refer to your hub landing page for further documentation.",
-            DeprecationWarning,
-            stacklevel=2,
+            FutureWarning,
+            stacklevel=4
         )
         addrport = addrportstr.split(":", 2)
         # 100MB size limit ~ 2500 streams for 5000 points with each point being 64bit
