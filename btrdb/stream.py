@@ -823,7 +823,7 @@ class Stream(object):
         """
         :meta private:
         """
-        tags = self.tags() if tags is None else tags
+        tags = {} if tags is None else tags
         collection = self.collection if collection is None else collection
         if collection is None:
             raise BTRDBValueError(

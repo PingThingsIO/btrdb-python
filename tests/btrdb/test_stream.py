@@ -278,7 +278,7 @@ class TestStream(object):
 
         stream.update(collection=collection)
         stream._btrdb.ep.setStreamTags.assert_called_once_with(
-            uu=uu, expected=42, tags=stream.tags(), collection=collection
+            uu=uu, expected=None, tags={}, collection=collection
         )
         stream._btrdb.ep.setStreamAnnotations.assert_not_called()
 
