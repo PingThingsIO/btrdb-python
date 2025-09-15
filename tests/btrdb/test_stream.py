@@ -272,15 +272,14 @@ class TestStream(object):
         endpoint = Mock(Endpoint)
         endpoint.streamInfo = Mock(return_value=("koala", 42, {}, {}, None))
         endpoint.info = Mock(return_value={"majorVersion": 5, "minorVersion": 30})
-        stream = Stream(btrdb=BTrDB(endpoint), uuid=uu)
+        stream = Stream(btrdb=BTrDB(endpoint), uuid=uu, property_version=42)
 
         collection = "giraffe"
 
         stream.update(collection=collection)
         stream._btrdb.ep.setStreamTags.assert_called_once_with(
-            uu=uu, expected=None, tags={}, collection=collection
+            uu=uu, expected=42, tags={}, collection=collection
         )
-        stream._btrdb.ep.setStreamAnnotations.assert_not_called()
 
     def test_update_annotations(self):
         """
