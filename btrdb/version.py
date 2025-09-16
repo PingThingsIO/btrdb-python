@@ -16,7 +16,7 @@ Maintains version and package information for deployment.
 ##########################################################################
 
 
-__version_info__ = {"major": 5, "minor": 34, "micro": 1, "releaselevel": "final"}
+__version_info__ = {"major": 5, "minor": 32, "micro": 2, "releaselevel": "final"}
 
 
 ##########################################################################
