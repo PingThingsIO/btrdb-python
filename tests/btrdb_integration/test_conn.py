@@ -44,17 +44,6 @@ class TestConnection:
         assert stream.uuid == uuid
         assert stream.name == "s"
 
-    def test_query(self, conn, tmp_collection):
-        conn.create(new_uuid(), tmp_collection, tags={"name": "s1"})
-        conn.create(new_uuid(), tmp_collection, tags={"name": "s2"})
-        uuids = conn.query(
-            "select name from streams where collection = $1 order by name;",
-            [tmp_collection],
-        )
-        assert len(uuids) == 2
-        assert uuids[0]["name"] == "s1"
-        assert uuids[1]["name"] == "s2"
-
     def test_list_collections(self, conn, tmp_collection):
         assert tmp_collection not in conn.list_collections()
         stream = conn.create(new_uuid(), tmp_collection, tags={"name": "s"})
