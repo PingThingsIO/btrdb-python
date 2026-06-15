@@ -34,7 +34,7 @@ protobuf
     #   ray
 pyarrow
     # via btrdb
-pytest
+pytest<8
     # via
     #   btrdb
     #   pytest-cov

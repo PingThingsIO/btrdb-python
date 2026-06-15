@@ -54,7 +54,10 @@ ray = [
 ]
 testing = [
     "btrdb[data]",
-    "pytest",
+    # pytest>=8 dropped the `path` arg from the pytest_collect_file hookspec,
+    # which the installed pytest-flake8 plugin still declares. Pin until
+    # pytest-flake8 ships a compatible release or is replaced.
+    "pytest<8",
     "freezegun",
     "pytest-cov",
     "pytest-flake8"
